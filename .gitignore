@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+artifacts/
+.dotnet-cli/
+tmp/
+output/imagegen/*
+!output/imagegen/memodock-sidebar-v5.png

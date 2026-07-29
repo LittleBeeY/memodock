@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>MemoDock</AssemblyName>
+    <RootNamespace>MemoDock</RootNamespace>
+    <Version>0.1.2</Version>
+    <AssemblyTitle>MemoDock</AssemblyTitle>
+    <Product>MemoDock</Product>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MemoDock.Core\MemoDock.Core.csproj" />
+  </ItemGroup>
+</Project>

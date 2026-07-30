@@ -9,6 +9,8 @@ using MemoDock.Core.Services;
 using MemoDock.Services;
 using WpfButton = System.Windows.Controls.Button;
 using WpfCheckBox = System.Windows.Controls.CheckBox;
+using WpfContextMenu = System.Windows.Controls.ContextMenu;
+using WpfMenuItem = System.Windows.Controls.MenuItem;
 using WpfMessageBox = System.Windows.MessageBox;
 using WpfRadioButton = System.Windows.Controls.RadioButton;
 
@@ -20,6 +22,7 @@ public partial class MainWindow : Window
     private readonly ForegroundAppService _foregroundApps;
     private readonly DispatcherTimer _foregroundTimer;
     private readonly HotKeyService _hotKey = new();
+    private readonly WindowStateService _windowState = new();
 
     private AppNotebook? _currentNotebook;
     private ForegroundAppSnapshot? _currentApp;
@@ -35,6 +38,7 @@ public partial class MainWindow : Window
 
         _repository = repository;
         _foregroundApps = foregroundApps;
+        _hasInitialPlacement = _windowState.TryRestore(this);
         _foregroundTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(800)
@@ -167,22 +171,36 @@ public partial class MainWindow : Window
 
         if (existing is null)
         {
-            _currentNotebook.Entries.Add(new MemoEntry
+            var entry = new MemoEntry
             {
                 Kind = _selectedKind,
                 Title = editor.EntryTitle,
                 Body = editor.EntryBody,
                 UpdatedAt = DateTimeOffset.Now
-            });
+            };
+            _currentNotebook.Entries.Add(entry);
+            if (!TrySaveAndRefresh())
+            {
+                _currentNotebook.Entries.Remove(entry);
+                RefreshEntries();
+            }
         }
         else
         {
+            var previousTitle = existing.Title;
+            var previousBody = existing.Body;
+            var previousUpdatedAt = existing.UpdatedAt;
             existing.Title = editor.EntryTitle;
             existing.Body = editor.EntryBody;
             existing.UpdatedAt = DateTimeOffset.Now;
+            if (!TrySaveAndRefresh())
+            {
+                existing.Title = previousTitle;
+                existing.Body = previousBody;
+                existing.UpdatedAt = previousUpdatedAt;
+                RefreshEntries();
+            }
         }
-
-        SaveAndRefresh();
     }
 
     private void DeleteEntry(MemoEntry entry)
@@ -204,15 +222,21 @@ public partial class MainWindow : Window
             return;
         }
 
+        var index = _currentNotebook.Entries.IndexOf(entry);
         _currentNotebook.Entries.Remove(entry);
-        SaveAndRefresh();
+        if (!TrySaveAndRefresh())
+        {
+            _currentNotebook.Entries.Insert(index, entry);
+            RefreshEntries();
+        }
     }
 
-    private void SaveAndRefresh()
+    private bool TrySaveAndRefresh()
     {
         try
         {
             _repository.Save();
+            return true;
         }
         catch (IOException exception)
         {
@@ -222,6 +246,7 @@ public partial class MainWindow : Window
                 "MemoDock",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
+            return false;
         }
         catch (UnauthorizedAccessException exception)
         {
@@ -231,9 +256,12 @@ public partial class MainWindow : Window
                 "MemoDock",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
+            return false;
         }
-
-        RefreshEntries();
+        finally
+        {
+            RefreshEntries();
+        }
     }
 
     private void CardMenu_Click(object sender, RoutedEventArgs e)
@@ -243,15 +271,15 @@ public partial class MainWindow : Window
             return;
         }
 
-        var menu = new ContextMenu
+        var menu = new WpfContextMenu
         {
             PlacementTarget = button
         };
 
-        var editItem = new MenuItem { Header = "编辑" };
+        var editItem = new WpfMenuItem { Header = "编辑" };
         editItem.Click += (_, _) => OpenEditor(entry);
 
-        var deleteItem = new MenuItem { Header = "删除" };
+        var deleteItem = new WpfMenuItem { Header = "删除" };
         deleteItem.Click += (_, _) => DeleteEntry(entry);
 
         menu.Items.Add(editItem);
@@ -263,8 +291,15 @@ public partial class MainWindow : Window
     {
         if (sender is WpfCheckBox { DataContext: MemoEntry entry })
         {
+            var previousCompleted = !entry.IsCompleted;
+            var previousUpdatedAt = entry.UpdatedAt;
             entry.UpdatedAt = DateTimeOffset.Now;
-            SaveAndRefresh();
+            if (!TrySaveAndRefresh())
+            {
+                entry.IsCompleted = previousCompleted;
+                entry.UpdatedAt = previousUpdatedAt;
+                RefreshEntries();
+            }
         }
     }
 
@@ -314,14 +349,14 @@ public partial class MainWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
-        Hide();
+        HideDock();
     }
 
     private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
-            Hide();
+            HideDock();
         }
     }
 
@@ -329,10 +364,17 @@ public partial class MainWindow : Window
     {
         if (AllowClose)
         {
+            _windowState.Save(this);
             return;
         }
 
         e.Cancel = true;
+        HideDock();
+    }
+
+    private void HideDock()
+    {
+        _windowState.Save(this);
         Hide();
     }
 

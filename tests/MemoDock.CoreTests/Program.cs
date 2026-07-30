@@ -4,7 +4,9 @@ using MemoDock.Core.Services;
 var failures = new List<string>();
 Run("按软件隔离并持久化", RoundTripPersistsPerApp, failures);
 Run("搜索标题和正文", SearchMatchesTitleAndBody, failures);
-Run("损坏数据保留备份", CorruptDatabaseIsPreserved, failures);
+Run("损坏数据恢复上一版", CorruptDatabaseIsPreserved, failures);
+Run("保存时保留上一版备份", SaveKeepsPreviousBackup, failures);
+Run("导出数据副本", ExportCopiesDatabase, failures);
 
 if (failures.Count > 0)
 {
@@ -17,7 +19,7 @@ if (failures.Count > 0)
     return 1;
 }
 
-Console.WriteLine("MemoDock.CoreTests：3 项全部通过。");
+Console.WriteLine("MemoDock.CoreTests：全部通过。");
 return 0;
 
 static void RoundTripPersistsPerApp()
@@ -60,13 +62,53 @@ static void CorruptDatabaseIsPreserved()
 {
     using var sandbox = new TestDirectory();
     var path = Path.Combine(sandbox.Path, "memos.json");
+    var repository = new MemoRepository(path);
+    var notebook = repository.GetOrCreateNotebook(new AppDescriptor("editor.exe", "代码编辑器", "C:\\Apps\\editor.exe"));
+    notebook.Entries.Add(new MemoEntry { Kind = MemoKind.Note, Title = "可恢复版本" });
+    repository.Save();
+    notebook.Entries[0].Title = "当前版本";
+    repository.Save();
     File.WriteAllText(path, "{not-json");
 
-    var repository = new MemoRepository(path);
-    repository.Load();
+    var recovered = new MemoRepository(path);
+    recovered.Load();
 
-    Assert(repository.Database.Apps.Count == 0, "损坏数据后应使用空数据库继续运行。");
+    Assert(recovered.Database.Apps.Single().Entries.Single().Title == "可恢复版本", "损坏数据后应恢复上一版备份。");
     Assert(Directory.GetFiles(sandbox.Path, "memos.json.corrupt-*").Length == 1, "损坏的原文件应保留为备份。");
+}
+
+static void SaveKeepsPreviousBackup()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+    var repository = new MemoRepository(path);
+    var notebook = repository.GetOrCreateNotebook(new AppDescriptor("editor.exe", "代码编辑器", "C:\\Apps\\editor.exe"));
+    notebook.Entries.Add(new MemoEntry { Kind = MemoKind.Note, Title = "第一版" });
+    repository.Save();
+
+    notebook.Entries[0].Title = "第二版";
+    repository.Save();
+
+    var backup = new MemoRepository(path + ".bak");
+    backup.Load();
+    Assert(backup.Database.Apps.Single().Entries.Single().Title == "第一版", "备份应保存覆盖前的数据。");
+}
+
+static void ExportCopiesDatabase()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+    var exportPath = Path.Combine(sandbox.Path, "exports", "MemoDock-backup.json");
+    var repository = new MemoRepository(path);
+    var notebook = repository.GetOrCreateNotebook(new AppDescriptor("editor.exe", "代码编辑器", "C:\\Apps\\editor.exe"));
+    notebook.Entries.Add(new MemoEntry { Kind = MemoKind.Note, Title = "需要导出" });
+    repository.Save();
+
+    repository.ExportTo(exportPath);
+
+    var exported = new MemoRepository(exportPath);
+    exported.Load();
+    Assert(exported.Database.Apps.Single().Entries.Single().Title == "需要导出", "导出文件未包含当前数据。");
 }
 
 static void Run(string name, Action test, ICollection<string> failures)

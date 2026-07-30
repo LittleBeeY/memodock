@@ -5,6 +5,7 @@ obj/
 *.suo
 artifacts/
 .dotnet-cli/
+.dotnet-sdk/
 tmp/
 output/imagegen/*
 !output/imagegen/memodock-sidebar-v5.png

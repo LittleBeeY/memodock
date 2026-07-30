@@ -33,13 +33,12 @@ public sealed class MemoRepository
 
         try
         {
-            var json = File.ReadAllText(_databasePath);
-            Database = JsonSerializer.Deserialize<MemoDatabase>(json, _jsonOptions) ?? new MemoDatabase();
+            Database = ReadDatabase(_databasePath);
         }
         catch (JsonException)
         {
             PreserveCorruptDatabase();
-            Database = new MemoDatabase();
+            Database = TryReadBackup() ?? new MemoDatabase();
         }
     }
 
@@ -78,14 +77,65 @@ public sealed class MemoRepository
 
         var temporaryPath = _databasePath + ".tmp";
         var json = JsonSerializer.Serialize(Database, _jsonOptions);
-        File.WriteAllText(temporaryPath, json);
-        File.Move(temporaryPath, _databasePath, overwrite: true);
+        try
+        {
+            File.WriteAllText(temporaryPath, json);
+            if (File.Exists(_databasePath))
+            {
+                File.Replace(temporaryPath, _databasePath, _databasePath + ".bak");
+            }
+            else
+            {
+                File.Move(temporaryPath, _databasePath);
+            }
+        }
+        finally
+        {
+            File.Delete(temporaryPath);
+        }
+    }
+
+    public void ExportTo(string destinationPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+
+        var fullPath = Path.GetFullPath(destinationPath);
+        var directory = Path.GetDirectoryName(fullPath)
+            ?? throw new InvalidOperationException("导出路径缺少目录。");
+
+        Directory.CreateDirectory(directory);
+        var json = JsonSerializer.Serialize(Database, _jsonOptions);
+        File.WriteAllText(fullPath, json);
     }
 
     private void PreserveCorruptDatabase()
     {
         var backupPath = $"{_databasePath}.corrupt-{DateTimeOffset.Now:yyyyMMdd-HHmmss}";
         File.Move(_databasePath, backupPath, overwrite: false);
+    }
+
+    private MemoDatabase ReadDatabase(string path)
+    {
+        var json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<MemoDatabase>(json, _jsonOptions) ?? new MemoDatabase();
+    }
+
+    private MemoDatabase? TryReadBackup()
+    {
+        var backupPath = _databasePath + ".bak";
+        if (!File.Exists(backupPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ReadDatabase(backupPath);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static string GetDefaultDatabasePath()

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using MemoDock.Core.Models;
@@ -139,7 +140,12 @@ public partial class MainWindow : Window
     {
         var menu = new WpfContextMenu
         {
-            PlacementTarget = AppSwitchButton
+            PlacementTarget = AppSwitchButton,
+            Placement = PlacementMode.Bottom,
+            VerticalOffset = 6,
+            MinWidth = Math.Max(180, AppSwitchButton.ActualWidth),
+            MaxWidth = 280,
+            Style = (Style)FindResource("DarkContextMenuStyle")
         };
 
         var notebooks = _repository.Database.Apps
@@ -155,7 +161,8 @@ public partial class MainWindow : Window
             menu.Items.Add(new WpfMenuItem
             {
                 Header = "还没有可切换的软件",
-                IsEnabled = false
+                IsEnabled = false,
+                Style = (Style)FindResource("DarkMenuItemStyle")
             });
         }
 
@@ -170,7 +177,8 @@ public partial class MainWindow : Window
                     notebook.AppId,
                     _currentApp?.Descriptor.AppId,
                     StringComparison.OrdinalIgnoreCase),
-                Tag = notebook
+                Tag = notebook,
+                Style = (Style)FindResource("DarkMenuItemStyle")
             };
             item.Click += AppSwitchMenuItem_Click;
             menu.Items.Add(item);
@@ -349,13 +357,25 @@ public partial class MainWindow : Window
 
         var menu = new WpfContextMenu
         {
-            PlacementTarget = button
+            PlacementTarget = button,
+            Placement = PlacementMode.Bottom,
+            VerticalOffset = 4,
+            MinWidth = 112,
+            Style = (Style)FindResource("DarkContextMenuStyle")
         };
 
-        var editItem = new WpfMenuItem { Header = "编辑" };
+        var editItem = new WpfMenuItem
+        {
+            Header = "编辑",
+            Style = (Style)FindResource("DarkMenuItemStyle")
+        };
         editItem.Click += (_, _) => OpenEditor(entry);
 
-        var deleteItem = new WpfMenuItem { Header = "删除" };
+        var deleteItem = new WpfMenuItem
+        {
+            Header = "删除",
+            Style = (Style)FindResource("DarkMenuItemStyle")
+        };
         deleteItem.Click += (_, _) => DeleteEntry(entry);
 
         menu.Items.Add(editItem);

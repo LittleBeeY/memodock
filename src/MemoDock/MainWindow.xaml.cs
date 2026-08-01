@@ -99,6 +99,11 @@ public partial class MainWindow : Window
 
     private void ForegroundTimer_Tick(object? sender, EventArgs e)
     {
+        if (AutoFollowToggle.IsChecked != true)
+        {
+            return;
+        }
+
         var snapshot = _foregroundApps.TryGetForegroundApp();
         if (snapshot is null)
         {
@@ -128,6 +133,77 @@ public partial class MainWindow : Window
 
         SearchBox.Clear();
         RefreshEntries();
+    }
+
+    private void AppSwitchButton_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new WpfContextMenu
+        {
+            PlacementTarget = AppSwitchButton
+        };
+
+        var notebooks = _repository.Database.Apps
+            .Where(notebook => !string.Equals(
+                notebook.AppId,
+                "memodock.welcome",
+                StringComparison.OrdinalIgnoreCase))
+            .OrderBy(notebook => notebook.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        if (notebooks.Count == 0)
+        {
+            menu.Items.Add(new WpfMenuItem
+            {
+                Header = "还没有可切换的软件",
+                IsEnabled = false
+            });
+        }
+
+        foreach (var notebook in notebooks)
+        {
+            var item = new WpfMenuItem
+            {
+                Header = notebook.DisplayName,
+                ToolTip = notebook.ExecutablePath,
+                IsCheckable = true,
+                IsChecked = string.Equals(
+                    notebook.AppId,
+                    _currentApp?.Descriptor.AppId,
+                    StringComparison.OrdinalIgnoreCase),
+                Tag = notebook
+            };
+            item.Click += AppSwitchMenuItem_Click;
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private void AppSwitchMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not WpfMenuItem { Tag: AppNotebook notebook })
+        {
+            return;
+        }
+
+        AutoFollowToggle.IsChecked = false;
+        UpdateFollowModeHint();
+        SwitchToApp(_foregroundApps.CreateSnapshot(new AppDescriptor(
+            notebook.AppId,
+            notebook.DisplayName,
+            notebook.ExecutablePath)));
+    }
+
+    private void AutoFollowToggle_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateFollowModeHint();
+    }
+
+    private void UpdateFollowModeHint()
+    {
+        FollowModeHint.Text = AutoFollowToggle.IsChecked == true
+            ? "自动跟随前台软件"
+            : "已锁定 · 点击软件名切换";
     }
 
     private void RefreshEntries()

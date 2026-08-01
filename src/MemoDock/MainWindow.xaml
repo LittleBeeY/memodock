@@ -112,6 +112,38 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="AutoFollowToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="64" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Surface"
+                                Background="#301A2436"
+                                BorderBrush="#48606E83"
+                                BorderThickness="1"
+                                CornerRadius="9">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="#7B5E62B6" />
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="#9B989FDE" />
+                                <Setter Property="Foreground" Value="#FAFAFD" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Opacity" Value="0.86" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Border BorderBrush="{StaticResource OuterBorderBrush}"
@@ -157,6 +189,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="48" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="72" />
                         <ColumnDefinition Width="36" />
                     </Grid.ColumnDefinitions>
 
@@ -192,18 +225,45 @@
                     <StackPanel Grid.Column="1"
                                 Margin="13,0,12,0"
                                 VerticalAlignment="Center">
-                        <TextBlock x:Name="CurrentAppName"
-                                   Text="正在识别软件…"
-                                   FontSize="18"
-                                   FontWeight="SemiBold"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="本机私有记录"
+                        <Button x:Name="AppSwitchButton"
+                                HorizontalContentAlignment="Left"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                                Style="{StaticResource FlatButtonStyle}"
+                                ToolTip="切换软件"
+                                Click="AppSwitchButton_Click">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right"
+                                           Text="⌄"
+                                           Margin="6,0,0,0"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontFamily="Segoe UI"
+                                           FontSize="14" />
+                                <TextBlock x:Name="CurrentAppName"
+                                           Text="正在识别软件…"
+                                           FontSize="18"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                        </Button>
+                        <TextBlock x:Name="FollowModeHint"
+                                   Text="自动跟随前台软件"
                                    Margin="0,3,0,0"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="11" />
                     </StackPanel>
 
-                    <Button Grid.Column="2"
+                    <ToggleButton x:Name="AutoFollowToggle"
+                                  Grid.Column="2"
+                                  Margin="4,0,4,0"
+                                  VerticalAlignment="Center"
+                                  shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                                  IsChecked="True"
+                                  Content="自动"
+                                  ToolTip="自动跟随前台软件"
+                                  Style="{StaticResource AutoFollowToggleStyle}"
+                                  Click="AutoFollowToggle_Click" />
+
+                    <Button Grid.Column="3"
                             Width="32"
                             Height="32"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True"

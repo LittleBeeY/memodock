@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -17,6 +18,11 @@ public sealed class ForegroundAppService
     {
         var windowHandle = GetForegroundWindow();
         if (windowHandle == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        if (IsWindowsShellSurface(windowHandle))
         {
             return null;
         }
@@ -46,6 +52,26 @@ public sealed class ForegroundAppService
         {
             return null;
         }
+    }
+
+    public ForegroundAppSnapshot CreateSnapshot(AppDescriptor descriptor)
+    {
+        return new ForegroundAppSnapshot(descriptor, TryGetIcon(descriptor.ExecutablePath));
+    }
+
+    private static bool IsWindowsShellSurface(IntPtr windowHandle)
+    {
+        var className = new StringBuilder(256);
+        if (GetClassName(windowHandle, className, className.Capacity) == 0)
+        {
+            return false;
+        }
+
+        return className.ToString() is
+            "Shell_TrayWnd" or
+            "Shell_SecondaryTrayWnd" or
+            "Progman" or
+            "WorkerW";
     }
 
     private static string TryGetExecutablePath(Process process)
@@ -120,4 +146,7 @@ public sealed class ForegroundAppService
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr windowHandle, out uint processId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr windowHandle, StringBuilder className, int maximumCount);
 }

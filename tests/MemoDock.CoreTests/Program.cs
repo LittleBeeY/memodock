@@ -7,6 +7,8 @@ Run("搜索标题和正文", SearchMatchesTitleAndBody, failures);
 Run("损坏数据恢复上一版", CorruptDatabaseIsPreserved, failures);
 Run("保存时保留上一版备份", SaveKeepsPreviousBackup, failures);
 Run("导出数据副本", ExportCopiesDatabase, failures);
+Run("商店应用更新后身份保持稳定", PackagedAppIdentityIgnoresVersion, failures);
+Run("自动迁移并合并商店应用旧记录", LegacyPackagedAppNotebooksAreMerged, failures);
 
 if (failures.Count > 0)
 {
@@ -109,6 +111,44 @@ static void ExportCopiesDatabase()
     var exported = new MemoRepository(exportPath);
     exported.Load();
     Assert(exported.Database.Apps.Single().Entries.Single().Title == "需要导出", "导出文件未包含当前数据。");
+}
+
+static void PackagedAppIdentityIgnoresVersion()
+{
+    const string oldPath = "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.721.4979.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe";
+    const string currentPath = "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.727.6591.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe";
+
+    var oldId = AppIdentity.Create(oldPath, "ChatGPT");
+    var currentId = AppIdentity.Create(currentPath, "ChatGPT");
+
+    Assert(oldId == currentId, "商店应用升级后应继续使用同一个身份。");
+    Assert(oldId == "windows-package:openai.codex_2p2nqsd0c76g0!app\\chatgpt.exe", "稳定身份格式不正确。");
+}
+
+static void LegacyPackagedAppNotebooksAreMerged()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+    const string oldPath = "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.721.4979.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe";
+    const string currentPath = "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.727.6591.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe";
+
+    var legacy = new MemoRepository(path);
+    var oldNotebook = legacy.GetOrCreateNotebook(new AppDescriptor(oldPath.ToLowerInvariant(), "Codex", oldPath));
+    oldNotebook.Entries.Add(new MemoEntry { Kind = MemoKind.Note, Title = "旧版本笔记" });
+    var stableId = AppIdentity.Create(currentPath, "ChatGPT");
+    var currentNotebook = legacy.GetOrCreateNotebook(new AppDescriptor(stableId, "Codex", currentPath));
+    currentNotebook.Entries.Add(new MemoEntry { Kind = MemoKind.Todo, Title = "当前版本待办" });
+    legacy.Database.Version = 1;
+    legacy.Save();
+
+    var migrated = new MemoRepository(path);
+    migrated.Load();
+
+    var notebook = migrated.Database.Apps.Single();
+    Assert(migrated.Database.Version == 2, "迁移后数据库版本应升级。");
+    Assert(notebook.AppId == stableId, "旧记录未迁移到稳定身份。");
+    Assert(notebook.Entries.Count == 2, "同一商店应用不同版本的记录应合并。");
+    Assert(File.Exists(path + ".bak"), "自动迁移前应保留数据库备份。");
 }
 
 static void Run(string name, Action test, ICollection<string> failures)

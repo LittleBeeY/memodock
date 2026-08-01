@@ -7,7 +7,7 @@
 
 MemoDock 会识别打开前最后处于前台的软件，并自动切换到该软件独立的笔记和待办。记录保存在本机，不需要账户或网络。
 
-> 当前版本：`0.2.0` 可分享 Beta
+> 当前版本：`0.2.1` 可分享 Beta
 
 <p align="center">
   <img src="./output/imagegen/memodock-sidebar-v5.png" width="360" alt="MemoDock 界面预览">
@@ -15,7 +15,7 @@ MemoDock 会识别打开前最后处于前台的软件，并自动切换到该�
 
 ## 功能
 
-- 按可执行文件路径隔离不同软件的记录
+- 按软件身份隔离记录；商店应用升级后仍能关联原有笔记
 - 笔记和待办两种记录类型
 - 当前软件内搜索、新建、编辑和删除
 - 待办完成状态
@@ -62,6 +62,7 @@ MemoDock 不会上传记录，也不依赖网络服务。数据默认保存在�
 | `%LOCALAPPDATA%\MemoDock\window.json` | 窗口大小和位置 |
 
 保存时会先写临时文件，再替换正式文件。如果主 JSON 损坏，原文件会改名保留，并自动尝试恢复 `.bak`。
+旧版数据会在加载时自动迁移：普通桌面程序仍按完整 EXE 路径区分，Windows 商店应用使用不含版本号的稳定身份，并自动合并升级前后的记录。迁移覆盖前同样会生成 `.bak`。
 
 > “本地私有”表示数据不离开当前电脑；记录目前以明文 JSON 保存，不等同于加密存储。
 
@@ -82,6 +83,7 @@ dotnet run --project .\tests\MemoDock.CoreTests\MemoDock.CoreTests.csproj --conf
 - 损坏数据恢复上一版
 - 保存时保留上一版备份
 - 导出数据副本
+- 商店应用升级后的稳定识别和旧记录迁移
 
 ### 发布
 
@@ -106,7 +108,7 @@ dotnet publish .\src\MemoDock\MemoDock.csproj `
   -p:DebugType=None `
   -p:DebugSymbols=false `
   --source https://api.nuget.org/v3/index.json `
-  --output .\artifacts\MemoDock-0.2.0-win-x64
+  --output .\artifacts\MemoDock-0.2.1-win-x64
 ```
 
 仓库的 `NuGet.Config` 默认不配置远程包源，上面的 `--source` 只用于获取官方 .NET 自包含运行时包。单文件版本与处理器架构绑定；ARM64 设备需要改用 `win-arm64` 单独发布。
@@ -127,7 +129,7 @@ output/imagegen/       已确认的界面视觉基准
 ## 当前限制
 
 - 同一程序的不同工作区暂时共用一份记录。
-- 少数使用系统进程包装器的商店应用可能显示不准确。
+- 少数使用系统进程包装器、且无法取得实际 EXE 路径的应用可能显示不准确。
 - 首次打开停靠到主工作区右侧，尚未跟随前台软件所在显示器。
 - 全局快捷键固定为 `Ctrl + Alt + N`，暂无设置界面。
 - 尚未制作 MSIX 安装包、代码签名和开机启动设置。

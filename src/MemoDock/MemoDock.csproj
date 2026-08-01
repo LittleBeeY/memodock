@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>MemoDock</AssemblyName>
     <RootNamespace>MemoDock</RootNamespace>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <AssemblyTitle>MemoDock</AssemblyTitle>
     <Product>MemoDock</Product>
     <ApplicationIcon>Assets\MemoDock.ico</ApplicationIcon>

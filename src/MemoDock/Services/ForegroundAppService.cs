@@ -7,6 +7,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using MemoDock.Core.Models;
+using MemoDock.Core.Services;
 
 namespace MemoDock.Services;
 
@@ -31,9 +32,7 @@ public sealed class ForegroundAppService
             using var process = Process.GetProcessById((int)processId);
             var executablePath = TryGetExecutablePath(process);
             var displayName = GetDisplayName(process, executablePath);
-            var appId = string.IsNullOrWhiteSpace(executablePath)
-                ? process.ProcessName.ToLowerInvariant()
-                : Path.GetFullPath(executablePath).ToLowerInvariant();
+            var appId = AppIdentity.Create(executablePath, process.ProcessName);
 
             return new ForegroundAppSnapshot(
                 new AppDescriptor(appId, displayName, executablePath),

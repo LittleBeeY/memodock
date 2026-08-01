@@ -40,6 +40,11 @@ public sealed class MemoRepository
             PreserveCorruptDatabase();
             Database = TryReadBackup() ?? new MemoDatabase();
         }
+
+        if (MigrateLegacyAppIdentities())
+        {
+            Save();
+        }
     }
 
     public AppNotebook GetOrCreateNotebook(AppDescriptor app)
@@ -135,6 +140,64 @@ public sealed class MemoRepository
         catch (JsonException)
         {
             return null;
+        }
+    }
+
+    private bool MigrateLegacyAppIdentities()
+    {
+        var changed = Database.Version < 2;
+        Database.Version = 2;
+
+        foreach (var notebook in Database.Apps)
+        {
+            if (!AppIdentity.TryCreatePackagedAppId(notebook.ExecutablePath, out var stableAppId) ||
+                string.Equals(notebook.AppId, stableAppId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            notebook.AppId = stableAppId;
+            changed = true;
+        }
+
+        foreach (var group in Database.Apps
+                     .GroupBy(notebook => notebook.AppId, StringComparer.OrdinalIgnoreCase)
+                     .Where(group =>
+                         group.Key.StartsWith("windows-package:", StringComparison.OrdinalIgnoreCase) &&
+                         group.Count() > 1)
+                     .ToList())
+        {
+            var target = group.First();
+            foreach (var source in group.Skip(1))
+            {
+                MergeEntries(target, source);
+                Database.Apps.Remove(source);
+            }
+
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static void MergeEntries(AppNotebook target, AppNotebook source)
+    {
+        foreach (var sourceEntry in source.Entries)
+        {
+            var existing = target.Entries.FirstOrDefault(entry => entry.Id == sourceEntry.Id);
+            if (existing is null)
+            {
+                target.Entries.Add(sourceEntry);
+                continue;
+            }
+
+            if (sourceEntry.UpdatedAt <= existing.UpdatedAt)
+            {
+                continue;
+            }
+
+            var index = target.Entries.IndexOf(existing);
+            target.Entries[index] = sourceEntry;
         }
     }
 

@@ -7,7 +7,7 @@
 
 MemoDock 会识别打开前最后处于前台的软件，并自动切换到该软件独立的笔记和待办。记录保存在本机，不需要账户或网络。
 
-> 当前版本：`0.2.1` 可分享 Beta
+> 当前版本：`0.3.0` 可分享 Beta
 
 <p align="center">
   <img src="./output/imagegen/memodock-sidebar-v5.png" width="360" alt="MemoDock 界面预览">
@@ -111,7 +111,7 @@ dotnet publish .\src\MemoDock\MemoDock.csproj `
   -p:DebugType=None `
   -p:DebugSymbols=false `
   --source https://api.nuget.org/v3/index.json `
-  --output .\artifacts\MemoDock-0.2.1-win-x64
+  --output .\artifacts\MemoDock-0.3.0-win-x64
 ```
 
 仓库的 `NuGet.Config` 默认不配置远程包源，上面的 `--source` 只用于获取官方 .NET 自包含运行时包。单文件版本与处理器架构绑定；ARM64 设备需要改用 `win-arm64` 单独发布。

@@ -8,6 +8,9 @@
     <img src="https://img.shields.io/badge/.NET-10-purple.svg" alt=".NET 10">
     <img src="https://img.shields.io/badge/windows-11-0078D6.svg" alt="Windows 11">
   </p>
+  <p>
+    <strong>简体中文</strong> · <a href="./README.en.md">English</a>
+  </p>
 </div>
 
 MemoDock 会识别打开前最后处于前台的软件，并自动切换到该软件独立的笔记和待办。记录保存在本机，不需要账户或网络。
@@ -148,6 +151,6 @@ Directory.Build.props  统一项目版本号
 
 ## 许可证
 
-[Apache License 2.0](./LICENSE) © 2026 MemoDock contributors
+[MIT](./LICENSE) © 2026 MemoDock contributors
 
 本项目的记录以明文 JSON 保存，属于"本地私有"而非加密存储；请勿把敏感凭据写入记录。

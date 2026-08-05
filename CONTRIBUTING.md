@@ -1,5 +1,7 @@
 # 贡献指南
 
+> **English**: [CONTRIBUTING.en.md](./CONTRIBUTING.en.md)
+
 感谢你对 MemoDock 的兴趣！无论是修 bug、加功能、改进文档还是提建议，都欢迎。
 
 ## 项目简介

@@ -282,10 +282,10 @@
                             BorderThickness="1">
                         <Grid>
                             <TextBlock x:Name="FallbackIcon"
-                                       Text="{}{ }"
-                                       FontFamily="Consolas"
-                                       FontSize="19"
-                                       FontWeight="SemiBold"
+                                       Text="?"
+                                       FontFamily="Segoe UI"
+                                       FontSize="25"
+                                       FontWeight="Bold"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center">
                                 <TextBlock.Foreground>
@@ -297,8 +297,8 @@
                                 </TextBlock.Foreground>
                             </TextBlock>
                             <Image x:Name="CurrentAppIcon"
-                                   Width="26"
-                                   Height="26"
+                                   Width="30"
+                                   Height="30"
                                    Stretch="Uniform" />
                         </Grid>
                     </Border>

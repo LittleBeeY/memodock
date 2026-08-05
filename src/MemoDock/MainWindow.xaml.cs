@@ -130,10 +130,25 @@ public partial class MainWindow : Window
         CurrentAppName.Text = snapshot.Descriptor.DisplayName;
         CurrentAppIcon.Source = snapshot.Icon;
         CurrentAppIcon.Visibility = snapshot.Icon is null ? Visibility.Collapsed : Visibility.Visible;
+        FallbackIcon.Text = GetFallbackLetter(snapshot.Descriptor.DisplayName);
         FallbackIcon.Visibility = snapshot.Icon is null ? Visibility.Visible : Visibility.Collapsed;
 
         SearchBox.Clear();
         RefreshEntries();
+    }
+
+    /// <summary>取软件名的首字母作为占位符；无法确定时回退为问号。</summary>
+    private static string GetFallbackLetter(string displayName)
+    {
+        foreach (var character in displayName.Trim())
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                return character.ToString().ToUpperInvariant();
+            }
+        }
+
+        return "?";
     }
 
     private void AppSwitchButton_Click(object sender, RoutedEventArgs e)

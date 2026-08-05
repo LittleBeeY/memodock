@@ -129,20 +129,42 @@ public sealed class ForegroundAppService
             return null;
         }
 
-        try
+        var icon = TryExtractAssociatedIcon(executablePath)
+            ?? TryExtractShellIcon(executablePath);
+
+        if (icon is null)
         {
-            using var icon = Icon.ExtractAssociatedIcon(executablePath);
-            if (icon is null)
+            return null;
+        }
+
+        using (icon)
+        {
+            try
+            {
+                var image = Imaging.CreateBitmapSourceFromHIcon(
+                    icon.Handle,
+                    Int32Rect.Empty,
+                    BitmapSizeOptions.FromEmptyOptions());
+                image.Freeze();
+                return image;
+            }
+            catch (ArgumentException)
             {
                 return null;
             }
+            catch (ExternalException)
+            {
+                return null;
+            }
+        }
+    }
 
-            var image = Imaging.CreateBitmapSourceFromHIcon(
-                icon.Handle,
-                Int32Rect.Empty,
-                BitmapSizeOptions.FromEmptyOptions());
-            image.Freeze();
-            return image;
+    /// <summary>通过文件关联直接提取图标。</summary>
+    private static Icon? TryExtractAssociatedIcon(string executablePath)
+    {
+        try
+        {
+            return Icon.ExtractAssociatedIcon(executablePath);
         }
         catch (Exception exception) when (
             exception is ArgumentException or
@@ -153,6 +175,52 @@ public sealed class ForegroundAppService
         }
     }
 
+    /// <summary>
+    /// 通过 Shell API（SHGetFileInfo）提取图标；对商店应用、
+    /// 浏览器等 ExtractAssociatedIcon 失败的情况更可靠。
+    /// </summary>
+    private static Icon? TryExtractShellIcon(string executablePath)
+    {
+        var info = new ShFileInfo();
+        var handle = SHGetFileInfo(
+            executablePath,
+            0,
+            ref info,
+            (uint)Marshal.SizeOf<ShFileInfo>(),
+            ShgfiIcon | ShgfiLargeIcon);
+
+        if (handle == IntPtr.Zero || info.HIcon == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        try
+        {
+            return Icon.FromHandle(info.HIcon);
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or
+            ExternalException)
+        {
+            return null;
+        }
+    }
+
+    private const uint ShgfiIcon = 0x000000100;
+    private const uint ShgfiLargeIcon = 0x000000000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ShFileInfo
+    {
+        public IntPtr HIcon;
+        public int IconIndex;
+        public uint Attributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string DisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string TypeName;
+    }
+
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
@@ -161,4 +229,12 @@ public sealed class ForegroundAppService
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr windowHandle, StringBuilder className, int maximumCount);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SHGetFileInfo(
+        string path,
+        uint fileAttributes,
+        ref ShFileInfo fileInfo,
+        uint fileInfoSize,
+        uint flags);
 }

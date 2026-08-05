@@ -7,6 +7,7 @@ artifacts/
 .dotnet-cli/
 .dotnet-sdk/
 tmp/
+tmp_icon/
 *.log
 output/imagegen/*
 !output/imagegen/memodock-sidebar-v5.png

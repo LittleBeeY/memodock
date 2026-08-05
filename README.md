@@ -15,7 +15,7 @@
 
 MemoDock 会识别打开前最后处于前台的软件，并自动切换到该软件独立的笔记和待办。记录保存在本机，不需要账户或网络。
 
-> 当前版本：`0.3.0` 可分享 Beta
+> 当前版本：`0.3.0`（[下载](https://github.com/LittleBeeY/memodock/releases/tag/v0.3.0)）
 
 <p align="center">
   <img src="./output/imagegen/memodock-sidebar-v5.png" width="360" alt="MemoDock 界面预览">

@@ -8,11 +8,7 @@
 
 ### 内部调整
 
-- 建立开源工程基础：Apache-2.0 许可证、贡献指南、安全策略、CI 工作流。
-- 发布流程脚本化：新增 `scripts/publish.ps1`，版本号统一由 `Directory.Build.props` 管理。
-- 自包含发布启用 ReadyToRun 加速启动。
-- 重构：数据库迁移提取为 `MemoMigrator`，原子写提取为 `AtomicFile`，路径常量集中到 `AppPaths`，菜单构建提取为 `ContextMenuBuilder`。
-- 为公开 API 补充 XML 文档注释；搜索与排序统一使用 `OrdinalIgnoreCase`。
+- 为面向用户的文档补充英文版（README、贡献指南、安全策略、变更日志）及语言切换链接。
 
 ## [0.3.0] - 2026-08-05
 
@@ -22,6 +18,17 @@
 - 关闭到系统托盘，托盘菜单支持导出数据备份。
 - Windows 11 Desktop Acrylic、圆角和深色界面。
 - 覆盖前自动保留上一版数据，主文件损坏时尝试恢复。
+- 全新应用图标：便签纸 + 停靠底座，青紫品牌渐变，7 种尺寸。
+
+### 改进
+
+- 前台软件图标提取增加 Shell API（`SHGetFileInfo`）兜底，浏览器等应用提取更可靠。
+- 图标提取失败时显示软件名首字母占位符，替代原先的 `{ }`。
+- 开源工程基础：Apache-2.0 许可证、贡献指南、安全策略、CI 与 Release 工作流。
+- 发布流程脚本化：新增 `scripts/publish.ps1`，版本号统一由 `Directory.Build.props` 管理。
+- 自包含发布启用 ReadyToRun 加速启动。
+- 重构：数据库迁移提取为 `MemoMigrator`，原子写提取为 `AtomicFile`，路径常量集中到 `AppPaths`，菜单构建提取为 `ContextMenuBuilder`。
+- 为公开 API 补充 XML 文档注释；搜索与排序统一使用 `OrdinalIgnoreCase`。
 
 ### 修复
 

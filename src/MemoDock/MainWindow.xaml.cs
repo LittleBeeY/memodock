@@ -1,8 +1,6 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using MemoDock.Core.Models;
@@ -10,15 +8,24 @@ using MemoDock.Core.Services;
 using MemoDock.Services;
 using WpfButton = System.Windows.Controls.Button;
 using WpfCheckBox = System.Windows.Controls.CheckBox;
-using WpfContextMenu = System.Windows.Controls.ContextMenu;
-using WpfMenuItem = System.Windows.Controls.MenuItem;
 using WpfMessageBox = System.Windows.MessageBox;
 using WpfRadioButton = System.Windows.Controls.RadioButton;
+using WpfTextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
 
 namespace MemoDock;
 
+/// <summary>MemoDock 主停靠窗口：展示当前前台软件对应的备忘录。</summary>
 public partial class MainWindow : Window
 {
+    /// <summary>欢迎页使用的虚拟软件身份。</summary>
+    private const string WelcomeAppId = "memodock.welcome";
+
+    /// <summary>前台软件轮询间隔。</summary>
+    private static readonly TimeSpan ForegroundPollInterval = TimeSpan.FromMilliseconds(800);
+
+    /// <summary>停靠到工作区右侧时的外边距。</summary>
+    private const double DockEdgeMargin = 12;
+
     private readonly MemoRepository _repository;
     private readonly ForegroundAppService _foregroundApps;
     private readonly DispatcherTimer _foregroundTimer;
@@ -40,31 +47,24 @@ public partial class MainWindow : Window
         _repository = repository;
         _foregroundApps = foregroundApps;
         _hasInitialPlacement = _windowState.TryRestore(this);
-        _foregroundTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(800)
-        };
+
+        _foregroundTimer = new DispatcherTimer { Interval = ForegroundPollInterval };
         _foregroundTimer.Tick += ForegroundTimer_Tick;
 
         SourceInitialized += MainWindow_SourceInitialized;
         Closed += MainWindow_Closed;
 
-        if (initialApp is not null)
-        {
-            SwitchToApp(initialApp);
-        }
-        else
-        {
-            SwitchToApp(new ForegroundAppSnapshot(
-                new AppDescriptor("memodock.welcome", "MemoDock", string.Empty),
-                null));
-        }
+        SwitchToApp(initialApp ?? new ForegroundAppSnapshot(
+            new AppDescriptor(WelcomeAppId, "MemoDock", string.Empty),
+            null));
 
         _foregroundTimer.Start();
     }
 
+    /// <summary>为 <c>true</c> 时允许窗口真正关闭（托盘退出时设置）。</summary>
     public bool AllowClose { get; set; }
 
+    /// <summary>显示并激活窗口；首次显示时停靠到工作区右侧。</summary>
     public void ShowDock()
     {
         if (!_hasInitialPlacement)
@@ -138,68 +138,29 @@ public partial class MainWindow : Window
 
     private void AppSwitchButton_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new WpfContextMenu
-        {
-            PlacementTarget = AppSwitchButton,
-            Placement = PlacementMode.Bottom,
-            VerticalOffset = 6,
-            MinWidth = Math.Max(180, AppSwitchButton.ActualWidth),
-            MaxWidth = 280,
-            Style = (Style)FindResource("DarkContextMenuStyle")
-        };
-
         var notebooks = _repository.Database.Apps
             .Where(notebook => !string.Equals(
                 notebook.AppId,
-                "memodock.welcome",
+                WelcomeAppId,
                 StringComparison.OrdinalIgnoreCase))
-            .OrderBy(notebook => notebook.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .OrderBy(notebook => notebook.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (notebooks.Count == 0)
-        {
-            menu.Items.Add(new WpfMenuItem
+        var menu = ContextMenuBuilder.CreateAppSwitchMenu(
+            AppSwitchButton,
+            notebooks,
+            _currentApp?.Descriptor.AppId,
+            notebook =>
             {
-                Header = "还没有可切换的软件",
-                IsEnabled = false,
-                Style = (Style)FindResource("DarkMenuItemStyle")
-            });
-        }
-
-        foreach (var notebook in notebooks)
-        {
-            var item = new WpfMenuItem
-            {
-                Header = notebook.DisplayName,
-                ToolTip = notebook.ExecutablePath,
-                IsCheckable = true,
-                IsChecked = string.Equals(
+                AutoFollowToggle.IsChecked = false;
+                UpdateFollowModeHint();
+                SwitchToApp(_foregroundApps.CreateSnapshot(new AppDescriptor(
                     notebook.AppId,
-                    _currentApp?.Descriptor.AppId,
-                    StringComparison.OrdinalIgnoreCase),
-                Tag = notebook,
-                Style = (Style)FindResource("DarkMenuItemStyle")
-            };
-            item.Click += AppSwitchMenuItem_Click;
-            menu.Items.Add(item);
-        }
+                    notebook.DisplayName,
+                    notebook.ExecutablePath)));
+            });
 
         menu.IsOpen = true;
-    }
-
-    private void AppSwitchMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not WpfMenuItem { Tag: AppNotebook notebook })
-        {
-            return;
-        }
-
-        AutoFollowToggle.IsChecked = false;
-        UpdateFollowModeHint();
-        SwitchToApp(_foregroundApps.CreateSnapshot(new AppDescriptor(
-            notebook.AppId,
-            notebook.DisplayName,
-            notebook.ExecutablePath)));
     }
 
     private void AutoFollowToggle_Click(object sender, RoutedEventArgs e)
@@ -262,28 +223,30 @@ public partial class MainWindow : Window
                 Body = editor.EntryBody,
                 UpdatedAt = DateTimeOffset.Now
             };
-            _currentNotebook.Entries.Add(entry);
-            if (!TrySaveAndRefresh())
-            {
-                _currentNotebook.Entries.Remove(entry);
-                RefreshEntries();
-            }
+
+            MutateWithRollback(
+                mutate: () => _currentNotebook.Entries.Add(entry),
+                rollback: () => _currentNotebook.Entries.Remove(entry));
         }
         else
         {
             var previousTitle = existing.Title;
             var previousBody = existing.Body;
             var previousUpdatedAt = existing.UpdatedAt;
-            existing.Title = editor.EntryTitle;
-            existing.Body = editor.EntryBody;
-            existing.UpdatedAt = DateTimeOffset.Now;
-            if (!TrySaveAndRefresh())
-            {
-                existing.Title = previousTitle;
-                existing.Body = previousBody;
-                existing.UpdatedAt = previousUpdatedAt;
-                RefreshEntries();
-            }
+
+            MutateWithRollback(
+                mutate: () =>
+                {
+                    existing.Title = editor.EntryTitle;
+                    existing.Body = editor.EntryBody;
+                    existing.UpdatedAt = DateTimeOffset.Now;
+                },
+                rollback: () =>
+                {
+                    existing.Title = previousTitle;
+                    existing.Body = previousBody;
+                    existing.UpdatedAt = previousUpdatedAt;
+                });
         }
     }
 
@@ -307,10 +270,39 @@ public partial class MainWindow : Window
         }
 
         var index = _currentNotebook.Entries.IndexOf(entry);
-        _currentNotebook.Entries.Remove(entry);
+        MutateWithRollback(
+            mutate: () => _currentNotebook.Entries.Remove(entry),
+            rollback: () => _currentNotebook.Entries.Insert(index, entry));
+    }
+
+    private void TodoCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not WpfCheckBox { DataContext: MemoEntry entry })
+        {
+            return;
+        }
+
+        // 双向绑定已在 Click 前把 IsCompleted 更新为勾选后的新值，
+        // 因此取反得到勾选前的旧值，用于保存失败时回滚。
+        var previousCompleted = !entry.IsCompleted;
+        var previousUpdatedAt = entry.UpdatedAt;
+
+        MutateWithRollback(
+            mutate: () => entry.UpdatedAt = DateTimeOffset.Now,
+            rollback: () =>
+            {
+                entry.IsCompleted = previousCompleted;
+                entry.UpdatedAt = previousUpdatedAt;
+            });
+    }
+
+    /// <summary>先执行修改，保存失败时回滚并刷新列表。</summary>
+    private void MutateWithRollback(Action mutate, Action rollback)
+    {
+        mutate();
         if (!TrySaveAndRefresh())
         {
-            _currentNotebook.Entries.Insert(index, entry);
+            rollback();
             RefreshEntries();
         }
     }
@@ -355,48 +347,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        var menu = new WpfContextMenu
-        {
-            PlacementTarget = button,
-            Placement = PlacementMode.Bottom,
-            VerticalOffset = 4,
-            MinWidth = 112,
-            Style = (Style)FindResource("DarkContextMenuStyle")
-        };
+        var menu = ContextMenuBuilder.CreateCardMenu(
+            button,
+            entry,
+            onEdit: OpenEditor,
+            onDelete: DeleteEntry);
 
-        var editItem = new WpfMenuItem
-        {
-            Header = "编辑",
-            Style = (Style)FindResource("DarkMenuItemStyle")
-        };
-        editItem.Click += (_, _) => OpenEditor(entry);
-
-        var deleteItem = new WpfMenuItem
-        {
-            Header = "删除",
-            Style = (Style)FindResource("DarkMenuItemStyle")
-        };
-        deleteItem.Click += (_, _) => DeleteEntry(entry);
-
-        menu.Items.Add(editItem);
-        menu.Items.Add(deleteItem);
         menu.IsOpen = true;
-    }
-
-    private void TodoCheckBox_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is WpfCheckBox { DataContext: MemoEntry entry })
-        {
-            var previousCompleted = !entry.IsCompleted;
-            var previousUpdatedAt = entry.UpdatedAt;
-            entry.UpdatedAt = DateTimeOffset.Now;
-            if (!TrySaveAndRefresh())
-            {
-                entry.IsCompleted = previousCompleted;
-                entry.UpdatedAt = previousUpdatedAt;
-                RefreshEntries();
-            }
-        }
     }
 
     private void NewEntryButton_Click(object sender, RoutedEventArgs e)
@@ -406,17 +363,19 @@ public partial class MainWindow : Window
 
     private void Tab_Checked(object sender, RoutedEventArgs e)
     {
-        if (sender is WpfRadioButton { Tag: string tag })
+        if (sender is not WpfRadioButton { Tag: string tag })
         {
-            _selectedKind = tag == "Todo" ? MemoKind.Todo : MemoKind.Note;
-            if (IsLoaded)
-            {
-                RefreshEntries();
-            }
+            return;
+        }
+
+        _selectedKind = tag == "Todo" ? MemoKind.Todo : MemoKind.Note;
+        if (IsLoaded)
+        {
+            RefreshEntries();
         }
     }
 
-    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void SearchBox_TextChanged(object sender, WpfTextChangedEventArgs e)
     {
         UpdateSearchPlaceholder();
         if (IsLoaded)
@@ -477,9 +436,9 @@ public partial class MainWindow : Window
     private void DockToRightEdge()
     {
         var workArea = SystemParameters.WorkArea;
-        Width = Math.Min(Width, workArea.Width - 24);
-        Height = Math.Min(Height, workArea.Height - 24);
-        Left = workArea.Right - Width - 12;
-        Top = workArea.Top + Math.Max(12, (workArea.Height - Height) / 2);
+        Width = Math.Min(Width, workArea.Width - DockEdgeMargin * 2);
+        Height = Math.Min(Height, workArea.Height - DockEdgeMargin * 2);
+        Left = workArea.Right - Width - DockEdgeMargin;
+        Top = workArea.Top + Math.Max(DockEdgeMargin, (workArea.Height - Height) / 2);
     }
 }

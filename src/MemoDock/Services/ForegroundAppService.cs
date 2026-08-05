@@ -12,8 +12,13 @@ using MemoDock.Core.Services;
 
 namespace MemoDock.Services;
 
+/// <summary>识别当前前台窗口所属的软件，并提供其图标。</summary>
 public sealed class ForegroundAppService
 {
+    /// <summary>
+    /// 获取当前前台应用快照。
+    /// </summary>
+    /// <returns>前台应用快照；遇到桌面、本进程或无法识别的情况返回 <c>null</c>。</returns>
     public ForegroundAppSnapshot? TryGetForegroundApp()
     {
         var windowHandle = GetForegroundWindow();
@@ -54,11 +59,15 @@ public sealed class ForegroundAppService
         }
     }
 
+    /// <summary>
+    /// 由已知的软件身份构建快照（用于手动切换）。
+    /// </summary>
     public ForegroundAppSnapshot CreateSnapshot(AppDescriptor descriptor)
     {
         return new ForegroundAppSnapshot(descriptor, TryGetIcon(descriptor.ExecutablePath));
     }
 
+    /// <summary>判断窗口是否为任务栏、桌面等系统外壳表面。</summary>
     private static bool IsWindowsShellSurface(IntPtr windowHandle)
     {
         var className = new StringBuilder(256);
@@ -74,6 +83,7 @@ public sealed class ForegroundAppService
             "WorkerW";
     }
 
+    /// <summary>尽力取得进程可执行文件路径；失败时返回空字符串。</summary>
     private static string TryGetExecutablePath(Process process)
     {
         try
@@ -90,6 +100,7 @@ public sealed class ForegroundAppService
         }
     }
 
+    /// <summary>优先使用文件描述信息作为展示名，缺失时回退到进程名。</summary>
     private static string GetDisplayName(Process process, string executablePath)
     {
         if (!string.IsNullOrWhiteSpace(executablePath))
@@ -110,6 +121,7 @@ public sealed class ForegroundAppService
         return process.ProcessName;
     }
 
+    /// <summary>提取可执行文件的关联图标；失败时返回 <c>null</c>。</summary>
     private static ImageSource? TryGetIcon(string executablePath)
     {
         if (string.IsNullOrWhiteSpace(executablePath))

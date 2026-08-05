@@ -1,18 +1,26 @@
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using MemoDock.Core.Services;
 
 namespace MemoDock.Services;
 
+/// <summary>主窗口大小与位置的读取与持久化。</summary>
 public sealed class WindowStateService
 {
     private readonly string _settingsPath;
+    private const double MinVisibleExtent = 80;
 
     public WindowStateService(string? settingsPath = null)
     {
-        _settingsPath = settingsPath ?? GetDefaultSettingsPath();
+        _settingsPath = settingsPath ?? AppPaths.WindowStatePath;
     }
 
+    /// <summary>
+    /// 尝试恢复窗口上次的大小和位置。
+    /// </summary>
+    /// <param name="window">要恢复的目标窗口。</param>
+    /// <returns>是否成功恢复；文件缺失、损坏或坐标失效时返回 <c>false</c>。</returns>
     public bool TryRestore(Window window)
     {
         ArgumentNullException.ThrowIfNull(window);
@@ -46,6 +54,7 @@ public sealed class WindowStateService
         }
     }
 
+    /// <summary>保存窗口当前的大小和位置；窗口非普通状态时跳过。</summary>
     public void Save(Window window)
     {
         ArgumentNullException.ThrowIfNull(window);
@@ -57,26 +66,23 @@ public sealed class WindowStateService
 
         try
         {
-            var directory = Path.GetDirectoryName(_settingsPath)
-                ?? throw new InvalidOperationException("窗口设置路径缺少目录。");
-            Directory.CreateDirectory(directory);
-
             var state = new WindowStateData(
                 window.Left,
                 window.Top,
                 window.Width,
                 window.Height);
-            var temporaryPath = _settingsPath + ".tmp";
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(state));
-            File.Move(temporaryPath, _settingsPath, overwrite: true);
+            var json = JsonSerializer.Serialize(state);
+            AtomicFile.WriteAllText(_settingsPath, json, keepBackup: false);
         }
         catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException)
         {
+            // 窗口位置保存失败不影响应用运行，静默忽略。
         }
     }
 
+    /// <summary>检查记录的坐标在当前虚拟屏幕中仍有可见区域。</summary>
     private static bool IsVisible(WindowStateData state, Window window)
     {
         if (!double.IsFinite(state.Left) ||
@@ -97,13 +103,7 @@ public sealed class WindowStateService
         var virtualBottom = virtualTop + SystemParameters.VirtualScreenHeight;
         var visibleWidth = Math.Min(state.Left + state.Width, virtualRight) - Math.Max(state.Left, virtualLeft);
         var visibleHeight = Math.Min(state.Top + state.Height, virtualBottom) - Math.Max(state.Top, virtualTop);
-        return visibleWidth >= 80 && visibleHeight >= 80;
-    }
-
-    private static string GetDefaultSettingsPath()
-    {
-        var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(root, "MemoDock", "window.json");
+        return visibleWidth >= MinVisibleExtent && visibleHeight >= MinVisibleExtent;
     }
 
     private sealed record WindowStateData(double Left, double Top, double Width, double Height);

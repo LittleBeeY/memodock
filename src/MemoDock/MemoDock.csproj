@@ -8,11 +8,21 @@
     <Nullable>enable</Nullable>
     <AssemblyName>MemoDock</AssemblyName>
     <RootNamespace>MemoDock</RootNamespace>
-    <Version>0.3.0</Version>
     <AssemblyTitle>MemoDock</AssemblyTitle>
     <Product>MemoDock</Product>
     <ApplicationIcon>Assets\MemoDock.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <!-- 自包含单文件发布时启用启动优化；框架依赖版不受影响。
+       注意：托盘图标依赖 WinForms，.NET 当前不支持对 WinForms 剪裁，故不启用 PublishTrimmed。 -->
+  <PropertyGroup Condition="'$(SelfContained)' == 'true'">
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <PublishReadyToRun>true</PublishReadyToRun>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MemoDock.Core\MemoDock.Core.csproj" />
   </ItemGroup>

@@ -4,6 +4,7 @@ using System.Windows.Interop;
 
 namespace MemoDock.Services;
 
+/// <summary>注册并监听全局快捷键（Ctrl + Alt + N）。</summary>
 public sealed class HotKeyService : IDisposable
 {
     private const int HotKeyId = 0x4D44;
@@ -17,8 +18,14 @@ public sealed class HotKeyService : IDisposable
     private IntPtr _windowHandle;
     private Action? _onPressed;
 
+    /// <summary>全局快捷键是否注册成功（可能被其他程序占用）。</summary>
     public bool IsRegistered { get; private set; }
 
+    /// <summary>
+    /// 为指定窗口注册全局快捷键。
+    /// </summary>
+    /// <param name="window">接收热键消息的窗口。</param>
+    /// <param name="onPressed">快捷键按下时的回调。</param>
     public void Register(Window window, Action onPressed)
     {
         ArgumentNullException.ThrowIfNull(window);
@@ -36,6 +43,7 @@ public sealed class HotKeyService : IDisposable
             VirtualKeyN);
     }
 
+    /// <summary>注销快捷键并释放资源。</summary>
     public void Dispose()
     {
         if (IsRegistered)

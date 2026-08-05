@@ -16,8 +16,12 @@ MemoDock 是 Windows 11 原生 WPF 应用，目标框架为 .NET 10。它按前�
 
 ## 代码边界
 
-- `src/MemoDock.Core/` 只放平台无关的数据模型、查询和本地存储逻辑。
+- `src/MemoDock.Core/` 只放平台无关的数据模型、查询、迁移和本地存储逻辑。
+  - 数据库结构迁移放在 `Services/MemoMigrator.cs`，新增版本升级时应扩展该类。
+  - 路径常量集中在 `Services/AppPaths.cs`，不要在各处重复拼接数据目录。
+  - 原子写文件统一使用 `Services/AtomicFile.cs`。
 - `src/MemoDock/` 放 WPF 界面、Win32 前台窗口识别、全局快捷键、系统托盘和窗口效果。
+  - 上下文菜单统一由 `Services/ContextMenuBuilder.cs` 构建，窗口内不再手写菜单。
 - 核心逻辑变更应同步更新 `tests/MemoDock.CoreTests/Program.cs` 中的无第三方框架自测。
 - 视觉调整以 `output/imagegen/memodock-sidebar-v5.png` 为基准；应用图标源文件在 `src/MemoDock/Assets/`，不要提交其他临时生成图。
 
@@ -29,10 +33,11 @@ dotnet build .\MemoDock.sln --configuration Release --no-restore
 dotnet run --project .\tests\MemoDock.CoreTests\MemoDock.CoreTests.csproj --configuration Release --no-restore
 ```
 
-修改发布方式时同时核对 README 的“发布与分享”。默认发布目录是依赖 .NET 10 Desktop Runtime 的多文件版本；只有显式指定目标运行时、自包含和单文件参数后，才能把一个 EXE 作为完整分发物。`NuGet.Config` 有意清空远程包源，自包含发布时需显式使用官方 NuGet 源获取运行时包。
+发布统一使用 `scripts/publish.ps1`，版本号只维护在根目录 `Directory.Build.props` 中。修改发布方式时同时核对 README 的“发布”。默认发布目录是依赖 .NET 10 Desktop Runtime 的多文件版本；`-SelfContained` 才生成无需预装 .NET 的单文件 EXE。`NuGet.Config` 有意清空远程包源，自包含发布时脚本会临时使用官方 NuGet 源获取运行时包。
 
 ## 仓库卫生
 
 - 不提交 `bin/`、`obj/`、`artifacts/`、`.dotnet-cli/`、`.dotnet-sdk/` 或 `tmp/`。
+- `output/imagegen/` 只保留 `memodock-sidebar-v5.png`，其他生成图不提交。
 - 不提交真实备忘录数据、用户路径转储、密钥或账户信息。
 - 只做与当前任务直接相关的修改，并保持现有代码风格。

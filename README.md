@@ -3,6 +3,11 @@
   <h1>MemoDock</h1>
   <p>为每个 Windows 软件准备一份独立的本地备忘录。</p>
   <p><strong>Windows 11 · WPF · .NET 10 · Local-first</strong></p>
+  <p>
+    <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
+    <img src="https://img.shields.io/badge/.NET-10-purple.svg" alt=".NET 10">
+    <img src="https://img.shields.io/badge/windows-11-0078D6.svg" alt="Windows 11">
+  </p>
 </div>
 
 MemoDock 会识别打开前最后处于前台的软件，并自动切换到该软件独立的笔记和待办。记录保存在本机，不需要账户或网络。
@@ -90,43 +95,39 @@ dotnet run --project .\tests\MemoDock.CoreTests\MemoDock.CoreTests.csproj --conf
 
 ### 发布
 
-默认发布是依赖框架的多文件版本，分享时必须发送整个发布目录：
+发布脚本会自动读取 `Directory.Build.props` 中的版本号，无需手工维护：
 
 ```powershell
-dotnet publish .\src\MemoDock\MemoDock.csproj `
-  --configuration Release `
-  --no-restore `
-  --output .\artifacts\MemoDock
+# 框架依赖多文件版（默认），分享时必须发送整个发布目录
+.\scripts\publish.ps1
+
+# 自包含单文件版（win-x64），无需预装 .NET
+.\scripts\publish.ps1 -SelfContained
+
+# 自包含单文件版（ARM64）
+.\scripts\publish.ps1 -SelfContained -Runtime win-arm64
 ```
 
-面向普通 Windows x64 用户时，建议生成无需预装 .NET 的自包含单文件版：
+输出到 `.\artifacts\`。自包含版启用了 ReadyToRun 预编译加快启动，并与处理器架构绑定；因托盘图标依赖 WinForms，不启用代码裁剪。
 
-```powershell
-dotnet publish .\src\MemoDock\MemoDock.csproj `
-  --configuration Release `
-  --runtime win-x64 `
-  --self-contained true `
-  -p:PublishSingleFile=true `
-  -p:IncludeNativeLibrariesForSelfExtract=true `
-  -p:DebugType=None `
-  -p:DebugSymbols=false `
-  --source https://api.nuget.org/v3/index.json `
-  --output .\artifacts\MemoDock-0.3.0-win-x64
-```
-
-仓库的 `NuGet.Config` 默认不配置远程包源，上面的 `--source` 只用于获取官方 .NET 自包含运行时包。单文件版本与处理器架构绑定；ARM64 设备需要改用 `win-arm64` 单独发布。
+仓库的 `NuGet.Config` 刻意不配置远程包源；自包含发布时脚本会临时使用官方 NuGet 源获取运行时包。
 
 ## 工程结构
 
 ```text
 src/
-  MemoDock.Core/       数据模型、搜索和本地存储
+  MemoDock.Core/       数据模型、查询、迁移和本地存储（平台无关）
+    Models/            备忘录、记录本、记录等模型
+    Services/          MemoRepository、MemoQuery、MemoMigrator、AppIdentity 等
   MemoDock/            WPF 界面与 Windows 集成
     Assets/            应用图标源文件和 ICO
-    Services/          前台识别、快捷键、单实例和窗口效果
+    Services/          前台识别、快捷键、单实例、窗口效果和菜单构建
 tests/
   MemoDock.CoreTests/  无第三方测试框架的核心逻辑自测
+scripts/
+  publish.ps1          一键发布脚本（框架依赖 / 自包含）
 output/imagegen/       已确认的界面视觉基准
+Directory.Build.props  统一项目版本号
 ```
 
 ## 当前限制
@@ -136,3 +137,17 @@ output/imagegen/       已确认的界面视觉基准
 - 首次打开停靠到主工作区右侧，尚未跟随前台软件所在显示器。
 - 全局快捷键固定为 `Ctrl + Alt + N`，暂无设置界面。
 - 尚未制作 MSIX 安装包、代码签名和开机启动设置。
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request。请先阅读 [贡献指南](./CONTRIBUTING.md)：
+
+- Bug 或功能建议 → 新建 [Issue](../../issues/new/choose)
+- 修改代码 → Fork 后提交 [Pull Request](../../pulls)
+- 安全漏洞 → 按 [SECURITY.md](./SECURITY.md) 走私密渠道
+
+## 许可证
+
+[Apache License 2.0](./LICENSE) © 2026 MemoDock contributors
+
+本项目的记录以明文 JSON 保存，属于"本地私有"而非加密存储；请勿把敏感凭据写入记录。

@@ -1,10 +1,16 @@
 namespace MemoDock.Core.Services;
 
+/// <summary>根据可执行文件路径计算稳定的软件身份标识。</summary>
 public static class AppIdentity
 {
     private const string WindowsAppsMarker = "\\WindowsApps\\";
     private const string PackagedAppPrefix = "windows-package:";
 
+    /// <summary>
+    /// 计算软件身份：普通程序用规范化后的完整路径，商店应用用不含版本号的稳定包身份。
+    /// </summary>
+    /// <param name="executablePath">可执行文件路径，可能为空字符串。</param>
+    /// <param name="fallbackProcessName">无法取得路径时的进程名回退。</param>
     public static string Create(string executablePath, string fallbackProcessName)
     {
         if (string.IsNullOrWhiteSpace(executablePath))
@@ -18,6 +24,12 @@ public static class AppIdentity
             : fullPath.ToLowerInvariant();
     }
 
+    /// <summary>
+    /// 尝试把 Windows 商店应用路径解析为不含版本号的稳定身份。
+    /// 仅当路径位于 WindowsApps 目录且包名结构合法时成功。
+    /// </summary>
+    /// <param name="executablePath">商店应用可执行文件路径。</param>
+    /// <param name="appId">解析出的稳定身份；失败时为空字符串。</param>
     public static bool TryCreatePackagedAppId(string executablePath, out string appId)
     {
         appId = string.Empty;

@@ -5,14 +5,20 @@ using System.Windows.Media;
 
 namespace MemoDock.Services;
 
+/// <summary>应用 Windows 11 桌面效果：深色模式、圆角与 Acrylic 背景。</summary>
 public static class WindowEffects
 {
     private const int DwmUseImmersiveDarkMode = 20;
     private const int DwmWindowCornerPreference = 33;
     private const int DwmSystemBackdropType = 38;
 
+    /// <summary>
+    /// 为窗口应用 DWM 效果。需要窗口句柄已创建，否则静默跳过。
+    /// </summary>
     public static void Apply(Window window)
     {
+        ArgumentNullException.ThrowIfNull(window);
+
         var handle = new WindowInteropHelper(window).Handle;
         if (handle == IntPtr.Zero)
         {

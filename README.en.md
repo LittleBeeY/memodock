@@ -15,7 +15,7 @@
 
 MemoDock detects the app that was last in the foreground and automatically switches to that app's own notes and todos. Everything is stored locally — no account or network required.
 
-> Current version: `0.3.0` ([Download](https://github.com/LittleBeeY/memodock/releases/tag/v0.3.0))
+> Current version: `0.4.0` ([Download](https://github.com/LittleBeeY/memodock/releases/tag/v0.4.0))
 
 <p align="center">
   <img src="./output/imagegen/memodock-sidebar-v5.png" width="360" alt="MemoDock preview">
@@ -117,7 +117,7 @@ The publish script reads the version from `Directory.Build.props` automatically:
 .\scripts\publish.ps1 -SelfContained -Runtime win-arm64
 ```
 
-Output goes to `.\artifacts\`. The self-contained build enables ReadyToRun for faster startup and is tied to a specific CPU architecture; code trimming is disabled because the tray icon relies on WinForms.
+Output goes to `.\artifacts\`. The self-contained build enables ReadyToRun for faster startup and Brotli-compresses the whole single-file bundle (roughly 1/3 the size; native libraries are extracted in memory); it is tied to a specific CPU architecture; code trimming is disabled because the tray icon relies on WinForms.
 
 The repo's `NuGet.Config` intentionally clears remote package sources; the publish script temporarily points to the official NuGet source for runtime packages.
 

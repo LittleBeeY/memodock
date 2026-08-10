@@ -15,7 +15,7 @@
 
 MemoDock 会识别打开前最后处于前台的软件，并自动切换到该软件独立的笔记和待办。记录保存在本机，不需要账户或网络。
 
-> 当前版本：`0.3.0`（[下载](https://github.com/LittleBeeY/memodock/releases/tag/v0.3.0)）
+> 当前版本：`0.4.0`（[下载](https://github.com/LittleBeeY/memodock/releases/tag/v0.4.0)）
 
 <p align="center">
   <img src="./output/imagegen/memodock-sidebar-v5.png" width="360" alt="MemoDock 界面预览">
@@ -118,7 +118,7 @@ dotnet run --project .\tests\MemoDock.CoreTests\MemoDock.CoreTests.csproj --conf
 .\scripts\publish.ps1 -SelfContained -Runtime win-arm64
 ```
 
-输出到 `.\artifacts\`。自包含版启用了 ReadyToRun 预编译加快启动，并与处理器架构绑定；因托盘图标依赖 WinForms，不启用代码裁剪。
+输出到 `.\artifacts\`。自包含版启用了 ReadyToRun 预编译加快启动，并用 Brotli 压缩整个单文件包（体积约降至 1/3，原生库在内存中解压加载）；与处理器架构绑定；因托盘图标依赖 WinForms，不启用代码裁剪。
 
 仓库的 `NuGet.Config` 刻意不配置远程包源；自包含发布时脚本会临时使用官方 NuGet 源获取运行时包。
 

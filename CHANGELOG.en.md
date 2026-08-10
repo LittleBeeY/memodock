@@ -4,6 +4,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-10
+
 ### Added
 
 - Global search across all apps; results are labeled with their owning app.
@@ -27,6 +29,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - Icon extraction swallows unexpected exceptions for untrusted paths so manual switching cannot crash on a bad path.
 - Multi-monitor DPI lookup falls back to 96 DPI on failure, avoiding divide-by-zero coordinates.
 - Database files over 50 MB are treated as corrupt and fall back to backups, preventing an oversized file from exhausting memory at startup.
+- The self-contained single-file build is now Brotli-compressed (roughly 1/3 the size), with native libraries loaded from memory instead of disk extraction.
 
 ### Internal
 
@@ -59,5 +62,6 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 - Store apps keep their notes after upgrades (stable identity recognition).
 
-[Unreleased]: https://github.com/LittleBeeY/memodock/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/LittleBeeY/memodock/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/LittleBeeY/memodock/releases/tag/v0.4.0
 [0.3.0]: https://github.com/LittleBeeY/memodock/releases/tag/v0.3.0

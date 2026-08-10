@@ -7,8 +7,10 @@
       - Framework-dependent multi-file (default): requires the user to install
         the .NET 10 Desktop Runtime.
       - Self-contained single-file: no .NET preinstall needed; ReadyToRun is
-        enabled for faster startup. (Trimming is intentionally disabled because
-        the tray icon uses WinForms, which is not trim-compatible.)
+        enabled for faster startup and Brotli compression shrinks the bundle to
+        roughly 1/3 (native libraries load from memory). (Trimming is
+        intentionally disabled because the tray icon uses WinForms, which is
+        not trim-compatible.)
 
     The version number is read from Directory.Build.props in the repo root,
     so there is a single place to bump before tagging.

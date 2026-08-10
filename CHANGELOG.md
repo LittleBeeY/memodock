@@ -6,6 +6,8 @@
 
 ## [未发布]
 
+## [0.4.0] - 2026-08-10
+
 ### 新增
 
 - 跨软件全局搜索：开启后一次搜索全部软件的笔记与待办，结果标注所属软件。
@@ -29,6 +31,7 @@
 - 图标提取对不可信路径兜底异常，手动切换不会因坏路径崩溃。
 - 多显示器 DPI 查询失败时回退 96 DPI，避免坐标除零。
 - 数据文件超 50MB 时视为损坏并回退备份，避免异常膨胀的文件在启动时耗尽内存。
+- 自包含单文件版启用 Brotli 压缩（体积约降至 1/3），原生库改由内存解压加载。
 
 ### 内部调整
 
@@ -61,5 +64,6 @@
 
 - 商店应用升级后仍能关联原有笔记（稳定身份识别）。
 
-[未发布]: https://github.com/LittleBeeY/memodock/compare/v0.3.0...HEAD
+[未发布]: https://github.com/LittleBeeY/memodock/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/LittleBeeY/memodock/releases/tag/v0.4.0
 [0.3.0]: https://github.com/LittleBeeY/memodock/releases/tag/v0.3.0

@@ -13,11 +13,16 @@
     <ApplicationIcon>Assets\MemoDock.ico</ApplicationIcon>
   </PropertyGroup>
 
-  <!-- 自包含单文件发布时启用启动优化；框架依赖版不受影响。
-       注意：托盘图标依赖 WinForms，.NET 当前不支持对 WinForms 剪裁，故不启用 PublishTrimmed。 -->
+  <!-- 自包含单文件发布时启用启动优化并压缩体积；框架依赖版不受影响。
+       注意：
+       - 托盘图标依赖 WinForms，.NET 当前不支持对 WinForms 剪裁，故不启用 PublishTrimmed。
+       - EnableCompressionInSingleFile 用 Brotli 压缩整个 bundle，启动时在内存中解压加载；
+         因此原生库采用内存加载（IncludeNativeLibrariesForSelfExtract=false），
+         避免先解压到临时目录再加载的开销。
+       - 压缩与 ReadyToRun 兼容：R2R 的 native 映像同样被压缩，解压后仍直接执行。 -->
   <PropertyGroup Condition="'$(SelfContained)' == 'true'">
     <PublishSingleFile>true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>None</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <PublishReadyToRun>true</PublishReadyToRun>

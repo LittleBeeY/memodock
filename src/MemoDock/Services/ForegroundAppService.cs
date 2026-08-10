@@ -15,6 +15,9 @@ namespace MemoDock.Services;
 /// <summary>识别当前前台窗口所属的软件，并提供其图标。</summary>
 public sealed class ForegroundAppService
 {
+    /// <summary>图标缓存上限；超过时清空重建，防止长期运行累积。</summary>
+    private const int IconCacheLimit = 512;
+
     private readonly Dictionary<string, ImageSource> _iconCache = new(StringComparer.OrdinalIgnoreCase);
     private IntPtr _lastForegroundHandle;
     private ForegroundAppSnapshot? _lastSnapshot;
@@ -156,11 +159,27 @@ public sealed class ForegroundAppService
             return cached;
         }
 
-        var image = TryGetAssociatedIconImage(executablePath)
-            ?? TryGetShellIconImage(executablePath);
+        ImageSource? image;
+        try
+        {
+            // 图标提取是尽力而为：路径可能来自磁盘存储（不可信），
+            // 任何提取失败都应降级为无图标，而不是让界面崩溃。
+            image = TryGetAssociatedIconImage(executablePath)
+                ?? TryGetShellIconImage(executablePath);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
 
         if (image is not null)
         {
+            if (_iconCache.Count >= IconCacheLimit)
+            {
+                // 缓存超限时清空重建，避免长期运行无限增长。
+                _iconCache.Clear();
+            }
+
             _iconCache[executablePath] = image;
         }
 

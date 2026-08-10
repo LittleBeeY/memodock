@@ -18,6 +18,7 @@ Run("主备份损坏时回退到历史备份", RecoversFromOlderBackup, failures
 Run("多关键词搜索需全部命中", MultiKeywordSearchRequiresAll, failures);
 Run("待办未完成项排在已完成项之前", TodoActiveItemsSortBeforeCompleted, failures);
 Run("合并冲突记录按更新时间取新", MergeTakesNewerEntry, failures);
+Run("主文件缺失时从备份恢复", MissingMainFallsBackToBackup, failures);
 Run("原子写覆盖时保留上一版备份", AtomicWriteKeepsBackup, failures);
 Run("原子写不保留备份路径", AtomicWriteWithoutBackup, failures);
 Run("全部备份损坏时回退为空数据库", AllBackupsCorruptFallsBackToEmpty, failures);
@@ -362,6 +363,28 @@ static void MergeTakesNewerEntry()
     var notebook = migrated.Database.Apps.Single();
     Assert(notebook.Entries.Count == 1, "同一记录应合并为一条。");
     Assert(notebook.Entries.Single().Body == "新内容", "合并应取更新时间较新的记录。");
+}
+
+static void MissingMainFallsBackToBackup()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+    var repository = new MemoRepository(path);
+    var notebook = repository.GetOrCreateNotebook(new AppDescriptor("editor.exe", "代码编辑器", "C:\\Apps\\editor.exe"));
+    notebook.Entries.Add(new MemoEntry { Kind = MemoKind.Note, Title = "崩溃前的数据" });
+    repository.Save();
+    notebook.Entries[0].Title = "最新保存";
+    repository.Save();
+
+    // 模拟保存中途崩溃：主文件缺失、仅剩备份。
+    // 备份语义是上一版：恢复得到 .bak 中的旧数据，而非被删的主文件内容。
+    File.Delete(path);
+
+    var recovered = new MemoRepository(path);
+    recovered.Load();
+
+    Assert(recovered.Database.Apps.Single().Entries.Single().Title == "崩溃前的数据", "主文件缺失时应从备份恢复。");
+    Assert(File.Exists(path), "恢复后应重新写出主文件。");
 }
 
 static void AtomicWriteKeepsBackup()

@@ -637,6 +637,12 @@ public partial class MainWindow : Window
     {
         // 显示器工作区是物理像素，需按该显示器 DPI 换算为 DIP 供 WPF 使用。
         _ = GetDpiForMonitor(monitor, MonitorDpiTypeEffective, out var dpiX, out _);
+        if (dpiX == 0)
+        {
+            // 查询失败时按 96 DPI 换算，避免除零产生无限坐标。
+            dpiX = 96;
+        }
+
         var scale = 96.0 / dpiX;
         var left = info.Work.Left * scale;
         var top = info.Work.Top * scale;

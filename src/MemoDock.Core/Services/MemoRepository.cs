@@ -35,13 +35,21 @@ public sealed class MemoRepository
 
     /// <summary>
     /// 从磁盘加载数据库；主文件损坏时保留原文件并尝试恢复上一版备份。
+    /// 主文件缺失（如保存中途崩溃）但存在备份时，同样从备份恢复。
     /// 加载后如有结构变化会自动迁移并写回。
     /// </summary>
     public void Load()
     {
         if (!File.Exists(_databasePath))
         {
-            Database = new MemoDatabase();
+            // 主文件不存在：首次启动（无备份）返回空库；若留下备份
+            // （写入中途崩溃），则从备份恢复而不是误判为空库。
+            Database = TryReadBackupChain() ?? new MemoDatabase();
+            if (Database.Apps.Count > 0)
+            {
+                Save();
+            }
+
             return;
         }
 
@@ -52,6 +60,7 @@ public sealed class MemoRepository
         catch (JsonException)
         {
             PreserveCorruptDatabase();
+            CleanupCorruptBackups();
             Database = TryReadBackupChain() ?? new MemoDatabase();
         }
 
@@ -114,8 +123,37 @@ public sealed class MemoRepository
     /// <summary>把无法解析的损坏文件改名保留，避免覆盖用户数据。</summary>
     private void PreserveCorruptDatabase()
     {
-        var backupPath = $"{_databasePath}.corrupt-{DateTimeOffset.Now:yyyyMMdd-HHmmss}";
+        // 用毫秒时间戳 + 随机后缀，避免同一时间窗口内多次损坏导致文件名冲突。
+        var backupPath = $"{_databasePath}.corrupt-{DateTimeOffset.Now:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}";
         File.Move(_databasePath, backupPath, overwrite: false);
+    }
+
+    /// <summary>清理损坏现场备份，只保留最近 10 份，避免磁盘无限累积。</summary>
+    private void CleanupCorruptBackups()
+    {
+        var directory = Path.GetDirectoryName(_databasePath);
+        var prefix = Path.GetFileName(_databasePath) + ".corrupt-";
+        if (directory is null)
+        {
+            return;
+        }
+
+        var staleFiles = Directory.EnumerateFiles(directory, prefix + "*")
+            .OrderByDescending(path => path)
+            .Skip(10);
+        foreach (var file in staleFiles)
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
     }
 
     /// <summary>读取并反序列化数据库文件；内容为 null 时返回空数据库。</summary>

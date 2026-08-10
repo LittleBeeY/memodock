@@ -7,6 +7,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 ### Internal
 
 - Added English translations for user-facing docs (README, contributing guide, security policy, changelog) with language switcher links.
+- Pinned third-party GitHub Actions in CI and release workflows to full commit SHAs to remove supply-chain risk from mutable tags.
 
 ## [0.3.0] - 2026-08-05
 

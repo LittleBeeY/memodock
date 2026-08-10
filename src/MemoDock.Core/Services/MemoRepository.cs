@@ -57,7 +57,7 @@ public sealed class MemoRepository
             }
             catch (JsonException)
             {
-                PreserveCorruptDatabase();
+                TryPreserveCorruptDatabase();
                 CleanupCorruptBackups();
                 Database = TryReadBackupChain() ?? new MemoDatabase();
             }
@@ -120,12 +120,24 @@ public sealed class MemoRepository
         AtomicFile.WriteAllText(fullPath, json, keepBackup: false);
     }
 
-    /// <summary>把无法解析的损坏文件改名保留，避免覆盖用户数据。</summary>
-    private void PreserveCorruptDatabase()
+    /// <summary>
+    /// 尽力把无法解析的损坏文件改名保留，避免覆盖用户数据。
+    /// 保留失败（文件被占用、目录不可写等）不阻断后续的备份恢复。
+    /// </summary>
+    private void TryPreserveCorruptDatabase()
     {
         // 用毫秒时间戳 + 随机后缀，避免同一时间窗口内多次损坏导致文件名冲突。
         var backupPath = $"{_databasePath}.corrupt-{DateTimeOffset.Now:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}";
-        File.Move(_databasePath, backupPath, overwrite: false);
+        try
+        {
+            File.Move(_databasePath, backupPath, overwrite: false);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException)
+        {
+            // 保留损坏现场只是尽力而为，失败不应阻断备份恢复。
+        }
     }
 
     /// <summary>清理损坏现场备份，只保留最近 10 份，避免磁盘无限累积。</summary>

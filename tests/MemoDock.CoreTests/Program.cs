@@ -22,6 +22,7 @@ Run("主文件缺失时从备份恢复", MissingMainFallsBackToBackup, failures)
 Run("从备份恢复后也执行迁移", BackupRestoreAlsoMigrates, failures);
 Run("设置持久化往返", SettingsRoundTrip, failures);
 Run("设置文件损坏回退默认", CorruptSettingsFallBackToDefaults, failures);
+Run("迁移重复执行保持幂等", MigrationIsIdempotent, failures);
 Run("超大数据库文件视为损坏", OversizedDatabaseRejectedAsCorrupt, failures);
 Run("原子写覆盖时保留上一版备份", AtomicWriteKeepsBackup, failures);
 Run("原子写不保留备份路径", AtomicWriteWithoutBackup, failures);
@@ -467,6 +468,48 @@ static void CorruptSettingsFallBackToDefaults()
     Assert(service.Current.HotKeyModifiers == "Control, Alt", "损坏的设置应回退默认修饰键。");
     Assert(service.Current.HotKeyKey == "N", "损坏的设置应回退默认主键。");
     Assert(!service.Current.LaunchOnStartup, "损坏的设置应回退默认开机自启。");
+}
+
+static void MigrationIsIdempotent()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+
+    // v2 数据：无 IsDeleted（默认 false）、无 CreatedAt（默认 MinValue）。
+    File.WriteAllText(path, """
+        {
+          "Version": 2,
+          "Apps": [
+            {
+              "AppId": "editor.exe",
+              "DisplayName": "编辑器",
+              "ExecutablePath": "C:\\Apps\\editor.exe",
+              "Entries": [
+                {
+                  "Kind": "Note",
+                  "Title": "记录",
+                  "UpdatedAt": "2026-01-15T10:00:00+08:00"
+                }
+              ]
+            }
+          ]
+        }
+        """);
+
+    var repository = new MemoRepository(path);
+    repository.Load();
+
+    var versionAfterFirst = repository.Database.Version;
+    var appCountAfterFirst = repository.Database.Apps.Count;
+    var createdAfterFirst = repository.Database.Apps.Single().Entries.Single().CreatedAt;
+
+    // 重复执行迁移：不应再次产生变化。
+    var changed = MemoMigrator.Migrate(repository.Database);
+
+    Assert(!changed, "重复迁移不应报告有变化。");
+    Assert(repository.Database.Version == versionAfterFirst, "重复迁移不应改动版本。");
+    Assert(repository.Database.Apps.Count == appCountAfterFirst, "重复迁移不应改动记录本数量。");
+    Assert(repository.Database.Apps.Single().Entries.Single().CreatedAt == createdAfterFirst, "重复迁移不应改动创建时间。");
 }
 
 static void AtomicWriteKeepsBackup()

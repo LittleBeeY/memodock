@@ -57,7 +57,8 @@ public static class StartupService
             var executablePath = Environment.ProcessPath
                 ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
             var commandLine = $"\"{executablePath}\"";
-            var data = Encoding.Unicode.GetBytes(commandLine);
+            // REG_SZ 要求以 null 结尾，且字节数须包含终止符，否则写入返回 ERROR_INVALID_PARAMETER。
+            var data = Encoding.Unicode.GetBytes(commandLine + "\0");
             return RegSetValueEx(
                 key.Value,
                 ValueName,

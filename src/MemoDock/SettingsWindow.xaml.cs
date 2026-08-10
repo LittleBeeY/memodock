@@ -64,7 +64,8 @@ public partial class SettingsWindow : Window
 
     private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
+        // 焦点在快捷键捕获框内时，Esc 应取消捕获而不是关闭窗口。
+        if (e.Key == Key.Escape && !HotKeyBox.IsKeyboardFocusWithin)
         {
             e.Handled = true;
             Close();

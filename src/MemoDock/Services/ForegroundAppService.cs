@@ -48,8 +48,14 @@ public sealed class ForegroundAppService : IDisposable
         }
 
         var snapshot = TryBuildSnapshot(windowHandle);
-        _lastForegroundHandle = windowHandle;
-        _lastSnapshot = snapshot;
+        if (snapshot is not null)
+        {
+            // 仅缓存成功结果：识别失败（如进程刚启动、MainModule 暂不可用）
+            // 时不缓存，下次调用会重试，避免前台应用信息就绪后仍无法识别。
+            _lastForegroundHandle = windowHandle;
+            _lastSnapshot = snapshot;
+        }
+
         return snapshot;
     }
 

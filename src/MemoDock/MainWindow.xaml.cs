@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using MemoDock.Core.Models;
 using MemoDock.Core.Services;
@@ -39,6 +40,9 @@ public partial class MainWindow : Window
     private readonly HotKeyService _hotKey = new();
     private readonly WindowStateService _windowState = new();
     private bool _savePending;
+    private bool _isSettingsOpen;
+    private ModifierKeys _registeredHotKeyModifiers;
+    private Key _registeredHotKeyKey;
 
     private AppNotebook? _currentNotebook;
     private ForegroundAppSnapshot? _currentApp;
@@ -113,6 +117,8 @@ public partial class MainWindow : Window
     {
         var modifiers = ParseModifiers(_settings.Current.HotKeyModifiers);
         var key = ParseKey(_settings.Current.HotKeyKey);
+        _registeredHotKeyModifiers = modifiers;
+        _registeredHotKeyKey = key;
         _hotKey.Register(this, modifiers, key, HandleGlobalHotKey);
 
         var comboText = HotKeyService.FormatCombo(modifiers, key);
@@ -126,19 +132,96 @@ public partial class MainWindow : Window
         OpenSettings();
     }
 
-    /// <summary>打开设置窗口；保存后应用新设置、重新注册快捷键并同步开机自启。</summary>
+    /// <summary>打开设置窗口；保存前验证新快捷键可用，失败则不写入设置，保持旧热键有效。</summary>
     public void OpenSettings()
     {
-        var window = new SettingsWindow(_settings.Current, onSave: settings =>
+        if (_isSettingsOpen)
         {
-            _settings.Save(settings);
-            RegisterHotKey();
-            ApplyStartupSetting();
-        })
+            return;
+        }
+
+        _isSettingsOpen = true;
+        try
         {
-            Owner = this
-        };
-        window.ShowDialog();
+            var window = new SettingsWindow(_settings.Current, onSave: settings =>
+            {
+                if (!TryValidateAndApplyHotKey(settings))
+                {
+                    return;
+                }
+
+                _settings.Save(settings);
+                RegisterHotKey();
+                ApplyStartupSetting();
+            })
+            {
+                Owner = this
+            };
+            window.ShowDialog();
+        }
+        finally
+        {
+            _isSettingsOpen = false;
+        }
+    }
+
+    /// <summary>校验新快捷键：被占用或属常见系统组合时拦截；通过才返回 true。</summary>
+    private bool TryValidateAndApplyHotKey(AppSettings settings)
+    {
+        var modifiers = ParseModifiers(settings.HotKeyModifiers);
+        var key = ParseKey(settings.HotKeyKey);
+        var comboText = HotKeyService.FormatCombo(modifiers, key);
+
+        // 与当前已注册组合相同时无需重注册，直接接受。
+        var isSameAsCurrent =
+            _hotKey.IsRegistered &&
+            modifiers == _registeredHotKeyModifiers &&
+            key == _registeredHotKeyKey;
+
+        if (!isSameAsCurrent && !_hotKey.IsCombinationAvailable(modifiers, key))
+        {
+            WpfMessageBox.Show(
+                this,
+                $"快捷键 {comboText} 已被其他程序占用，未保存。",
+                "MemoDock",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return false;
+        }
+
+        if (IsCommonSystemCombination(modifiers, key))
+        {
+            var result = WpfMessageBox.Show(
+                this,
+                $"{comboText} 是常用的系统快捷键（如 Ctrl+C 复制），"
+                + "注册为全局快捷键后可能影响其他应用。仍要继续吗？",
+                "MemoDock",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (result != MessageBoxResult.Yes)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>判断组合是否可能劫持常用系统/剪贴板快捷键。</summary>
+    private static bool IsCommonSystemCombination(ModifierKeys modifiers, Key key)
+    {
+        if (modifiers == ModifierKeys.Control && key is
+            Key.C or Key.V or Key.X or Key.Z or Key.Y or Key.A or Key.S or Key.O or Key.P)
+        {
+            return true;
+        }
+
+        if (modifiers == ModifierKeys.Windows)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>把设置中的开机自启选项同步到注册表；仅在需要变更时写入。</summary>
@@ -706,20 +789,15 @@ public partial class MainWindow : Window
             return null;
         }
 
-        return MonitorWorkAreaToDips(monitor, info);
+        return MonitorWorkAreaToDips(info);
     }
 
-    private static Rect MonitorWorkAreaToDips(IntPtr monitor, MonitorInfo info)
+    private Rect MonitorWorkAreaToDips(MonitorInfo info)
     {
-        // 显示器工作区是物理像素，需按该显示器 DPI 换算为 DIP 供 WPF 使用。
-        _ = GetDpiForMonitor(monitor, MonitorDpiTypeEffective, out var dpiX, out _);
-        if (dpiX == 0)
-        {
-            // 查询失败时按 96 DPI 换算，避免除零产生无限坐标。
-            dpiX = 96;
-        }
-
-        var scale = 96.0 / dpiX;
+        // 显示器工作区是物理像素。进程默认 SystemAware 时 WPF 的 DIP 坐标系
+        // 按系统 DPI 解释（而非目标显示器 DPI），因此换算必须用系统 DPI；
+        // 若用目标屏 DPI（GetDpiForMonitor），混 DPI 环境下会坐标错位。
+        var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
         var left = info.Work.Left * scale;
         var top = info.Work.Top * scale;
         return new Rect(
@@ -730,7 +808,6 @@ public partial class MainWindow : Window
     }
 
     private const uint MonitorDefaultToNearest = 2;
-    private const int MonitorDpiTypeEffective = 0;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect
@@ -756,9 +833,6 @@ public partial class MainWindow : Window
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
-
-    [DllImport("shcore.dll")]
-    private static extern int GetDpiForMonitor(IntPtr monitor, int dpiType, out uint dpiX, out uint dpiY);
 
     /// <summary>列表卡片的视图包装：记录本身及其所属软件名（全局搜索时显示）。</summary>
     private sealed class EntryView(MemoEntry entry, string appName = "")

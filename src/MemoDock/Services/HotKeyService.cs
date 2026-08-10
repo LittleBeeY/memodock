@@ -9,6 +9,7 @@ namespace MemoDock.Services;
 public sealed class HotKeyService : IDisposable
 {
     private const int HotKeyId = 0x4D44;
+    private const int ProbeHotKeyId = 0x4D45;
     private const int WmHotKey = 0x0312;
     private const uint ModAlt = 0x0001;
     private const uint ModControl = 0x0002;
@@ -56,6 +57,29 @@ public sealed class HotKeyService : IDisposable
             virtualKey);
 
         RegisteredComboText = IsRegistered ? FormatCombo(modifiers, key) : string.Empty;
+    }
+
+    /// <summary>
+    /// 探测组合是否可注册（不修改现有注册）。
+    /// 用于在注销旧热键前确认新组合可用，避免注册失败导致旧热键也被破坏。
+    /// </summary>
+    public bool IsCombinationAvailable(ModifierKeys modifiers, Key key)
+    {
+        if (_windowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var modifiersValue = ToModifiersValue(modifiers) | ModNoRepeat;
+        var virtualKey = (uint)KeyInterop.VirtualKeyFromKey(key);
+
+        var success = RegisterHotKey(_windowHandle, ProbeHotKeyId, modifiersValue, virtualKey);
+        if (success)
+        {
+            _ = UnregisterHotKey(_windowHandle, ProbeHotKeyId);
+        }
+
+        return success;
     }
 
     /// <summary>把快捷键组合转成可读文本（如 "Ctrl + Alt + N"）。</summary>

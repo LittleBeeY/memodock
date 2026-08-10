@@ -9,6 +9,13 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - Global search across all apps; results are labeled with their owning app.
 - Recycle bin: deletion is now a soft delete; records can be restored or permanently removed (schema v3).
 - Rolling backups: `.bak` and `.bak.1` are preserved before overwrite, and load falls back to the older backup if the newest one is corrupt.
+- Multi-monitor: first dock follows the foreground app's monitor (with per-monitor DPI conversion).
+- Window keyboard shortcuts: `Ctrl + N` to create a record, `Ctrl + F` to focus search.
+
+### Improved
+
+- Search supports multiple keywords (whitespace-separated, all must match); active todos sort before completed ones.
+- Saving is debounced and batched; pending changes are flushed when the window hides or the app exits.
 
 ### Fixed
 

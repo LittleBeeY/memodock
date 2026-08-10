@@ -27,13 +27,13 @@ MemoDock detects the app that was last in the foreground and automatically switc
 - Auto-follows the foreground app; can also lock and switch manually
 - Keeps the current app when clicking the taskbar or desktop
 - Two record types: notes and todos
-- Search, create, edit and delete within the current app
+- Search, create, edit and delete within the current app; search supports multiple keywords
 - Global search across all apps, with the owning app labeled
 - Recycle bin: deleted records can be restored or permanently removed
-- Todo completion state
-- `Ctrl + Alt + N` global hotkey
+- Todo completion state; active todos sort first
+- `Ctrl + Alt + N` global hotkey; in-window `Ctrl + N` to create, `Ctrl + F` to search
 - Single instance; relaunch only brings up the existing window
-- Drag, resize, and remembered window size/position
+- Drag, resize, and remembered window size/position; first dock follows the foreground app's monitor
 - Closes to the system tray; tray menu can export a data backup
 - Windows 11 Desktop Acrylic, rounded corners and dark theme
 - Two rolling backups preserved before overwrite; corrupt main files fall back to older backups
@@ -92,9 +92,10 @@ dotnet run --project .\tests\MemoDock.CoreTests\MemoDock.CoreTests.csproj --conf
 Current self-tests cover:
 
 - Per-app record isolation and persistence
-- Title and body search
+- Title and body search, multi-keyword search
 - Global search across apps
 - Soft delete, recycle bin and restore
+- Todo ordering (active items first)
 - Corrupt-data recovery from the previous version
 - Rolling backups and fallback to an older generation
 - Backup retention before saving
@@ -142,7 +143,6 @@ Directory.Build.props  Central project version
 
 - Different workspaces of the same app currently share one set of records.
 - A few apps that use system process wrappers and hide the real EXE path may display inaccurately.
-- First open docks to the right of the primary work area; it does not yet follow the foreground app's monitor.
 - The global hotkey is fixed to `Ctrl + Alt + N`; there is no settings UI yet.
 - No MSIX installer, code signing, or startup-launch setup yet.
 

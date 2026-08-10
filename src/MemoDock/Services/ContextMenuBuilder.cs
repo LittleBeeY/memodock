@@ -98,6 +98,39 @@ internal static class ContextMenuBuilder
         return menu;
     }
 
+    /// <summary>
+    /// 构建回收站中单条记录的操作菜单（恢复/彻底删除）。
+    /// </summary>
+    public static WpfContextMenu CreateRecycleMenu(
+        FrameworkElement placementTarget,
+        MemoEntry entry,
+        Action<MemoEntry> onRestore,
+        Action<MemoEntry> onDeleteForever)
+    {
+        var menu = new WpfContextMenu
+        {
+            PlacementTarget = placementTarget,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+            VerticalOffset = 4,
+            MinWidth = 112,
+            Style = FindStyle(placementTarget, ContextMenuStyleKey)
+        };
+
+        menu.Items.Add(new WpfMenuItem
+        {
+            Header = "恢复",
+            Style = FindStyle(placementTarget, MenuItemStyleKey)
+        }.WithClick(() => onRestore(entry)));
+
+        menu.Items.Add(new WpfMenuItem
+        {
+            Header = "彻底删除",
+            Style = FindStyle(placementTarget, MenuItemStyleKey)
+        }.WithClick(() => onDeleteForever(entry)));
+
+        return menu;
+    }
+
     private static Style FindStyle(FrameworkElement element, string key)
     {
         return (Style)element.FindResource(key);

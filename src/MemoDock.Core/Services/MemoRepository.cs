@@ -7,6 +7,9 @@ namespace MemoDock.Core.Services;
 /// <summary>备忘录的加载、持久化与导出。记录以本地 JSON 文件保存，不依赖网络。</summary>
 public sealed class MemoRepository
 {
+    /// <summary>保留的历史备份份数（<c>.bak</c> 与 <c>.bak.1</c>）。</summary>
+    private const int BackupCount = 2;
+
     private readonly string _databasePath;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -49,7 +52,7 @@ public sealed class MemoRepository
         catch (JsonException)
         {
             PreserveCorruptDatabase();
-            Database = TryReadBackup() ?? new MemoDatabase();
+            Database = TryReadBackupChain() ?? new MemoDatabase();
         }
 
         if (MemoMigrator.Migrate(Database))
@@ -88,11 +91,11 @@ public sealed class MemoRepository
         return notebook;
     }
 
-    /// <summary>原子方式保存当前数据库；覆盖前自动保留上一版备份。</summary>
+    /// <summary>原子方式保存当前数据库；覆盖前保留多份滚动备份。</summary>
     public void Save()
     {
         var json = JsonSerializer.Serialize(Database, _jsonOptions);
-        AtomicFile.WriteAllText(_databasePath, json, keepBackup: true);
+        AtomicFile.WriteAllTextWithRollingBackup(_databasePath, json, BackupCount);
     }
 
     /// <summary>
@@ -122,22 +125,29 @@ public sealed class MemoRepository
         return JsonSerializer.Deserialize<MemoDatabase>(json, _jsonOptions) ?? new MemoDatabase();
     }
 
-    /// <summary>尝试读取上一版备份；备份不存在或损坏时返回 <c>null</c>。</summary>
-    private MemoDatabase? TryReadBackup()
+    /// <summary>
+    /// 依次尝试最新与更早的滚动备份，返回第一个可解析的；全部失败时返回 <c>null</c>。
+    /// </summary>
+    private MemoDatabase? TryReadBackupChain()
     {
-        var backupPath = _databasePath + ".bak";
-        if (!File.Exists(backupPath))
+        for (var index = 0; index < BackupCount; index++)
         {
-            return null;
+            var backupPath = index == 0 ? _databasePath + ".bak" : $"{_databasePath}.bak.{index}";
+            if (!File.Exists(backupPath))
+            {
+                continue;
+            }
+
+            try
+            {
+                return ReadDatabase(backupPath);
+            }
+            catch (JsonException)
+            {
+                // 这一级备份也损坏，继续尝试更早的。
+            }
         }
 
-        try
-        {
-            return ReadDatabase(backupPath);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        return null;
     }
 }

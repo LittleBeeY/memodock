@@ -145,6 +145,39 @@
             </Setter>
         </Style>
 
+        <Style x:Key="SearchGlobalToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Surface"
+                                Background="Transparent"
+                                BorderBrush="#48606E83"
+                                BorderThickness="1"
+                                CornerRadius="7">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="#7B5E62B6" />
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="#9B989FDE" />
+                                <Setter Property="Foreground" Value="#FAFAFD" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Opacity" Value="0.86" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="OverridesDefaultStyle" Value="True" />
             <Setter Property="Background" Value="Transparent" />
@@ -366,6 +399,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="42" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Path Grid.Column="0"
                               Width="17"
@@ -397,6 +431,12 @@
                                        VerticalAlignment="Center"
                                        IsHitTestVisible="False" />
                         </Grid>
+                        <ToggleButton x:Name="GlobalSearchToggle"
+                                      Grid.Column="2"
+                                      Content="全局"
+                                      ToolTip="跨软件搜索所有记录"
+                                      Style="{StaticResource SearchGlobalToggleStyle}"
+                                      Click="GlobalSearchToggle_Click" />
                     </Grid>
                 </Border>
 
@@ -408,6 +448,7 @@
                         CornerRadius="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
@@ -425,6 +466,12 @@
                                      Tag="Todo"
                                      Style="{StaticResource SegmentedTabStyle}"
                                      Checked="Tab_Checked" />
+                        <RadioButton Grid.Column="2"
+                                     GroupName="KindTabs"
+                                     Content="回收站"
+                                     Tag="Recycle"
+                                     Style="{StaticResource SegmentedTabStyle}"
+                                     Checked="Tab_Checked" />
                     </Grid>
                 </Border>
 
@@ -434,7 +481,7 @@
                                   PanningMode="VerticalOnly">
                         <ItemsControl x:Name="EntryList">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type models:MemoEntry}">
+                                <DataTemplate>
                                     <Border Margin="0,0,0,12"
                                             Padding="17"
                                             Background="{StaticResource CardBrush}"
@@ -457,14 +504,14 @@
                                             <CheckBox Grid.Column="0"
                                                       Margin="0,3,12,0"
                                                       VerticalAlignment="Top"
-                                                      IsChecked="{Binding IsCompleted}"
+                                                      IsChecked="{Binding Entry.IsCompleted}"
                                                       Click="TodoCheckBox_Click">
                                                 <CheckBox.Style>
                                                     <Style TargetType="CheckBox"
                                                            BasedOn="{StaticResource TodoCheckStyle}">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Kind}"
+                                                            <DataTrigger Binding="{Binding Entry.Kind}"
                                                                          Value="{x:Static models:MemoKind.Todo}">
                                                                 <Setter Property="Visibility" Value="Visible" />
                                                             </DataTrigger>
@@ -474,7 +521,22 @@
                                             </CheckBox>
 
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Title}"
+                                                <TextBlock Text="{Binding AppName}"
+                                                           FontSize="10.5"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Margin="0,0,0,4">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasAppName}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Entry.Title}"
                                                            FontSize="15"
                                                            FontWeight="SemiBold"
                                                            TextWrapping="Wrap">
@@ -482,7 +544,7 @@
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                                <DataTrigger Binding="{Binding Entry.IsCompleted}" Value="True">
                                                                     <Setter Property="TextDecorations" Value="Strikethrough" />
                                                                     <Setter Property="Opacity" Value="0.58" />
                                                                 </DataTrigger>
@@ -490,7 +552,7 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-                                                <TextBlock Text="{Binding Body}"
+                                                <TextBlock Text="{Binding Entry.Body}"
                                                            Margin="0,9,0,0"
                                                            Foreground="{StaticResource TextSecondaryBrush}"
                                                            FontSize="12.5"
@@ -500,10 +562,10 @@
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Visibility" Value="Visible" />
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding Body}" Value="">
+                                                                <DataTrigger Binding="{Binding Entry.Body}" Value="">
                                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                                 </DataTrigger>
-                                                                <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                                <DataTrigger Binding="{Binding Entry.IsCompleted}" Value="True">
                                                                     <Setter Property="Opacity" Value="0.46" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -533,11 +595,13 @@
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 IsHitTestVisible="False">
-                        <TextBlock Text="还没有记录"
+                        <TextBlock x:Name="EmptyStateTitle"
+                                   Text="还没有记录"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FontSize="14"
                                    HorizontalAlignment="Center" />
-                        <TextBlock Text="点击下方按钮添加第一条"
+                        <TextBlock x:Name="EmptyStateHint"
+                                   Text="点击下方按钮添加第一条"
                                    Margin="0,6,0,0"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="11"
@@ -545,7 +609,8 @@
                     </StackPanel>
                 </Grid>
 
-                <Button Grid.Row="4"
+                <Button x:Name="NewEntryButton"
+                        Grid.Row="4"
                         Style="{StaticResource PrimaryActionStyle}"
                         Content="＋  新建记录"
                         Click="NewEntryButton_Click" />

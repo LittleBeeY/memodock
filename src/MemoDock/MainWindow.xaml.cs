@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using MemoDock.Core.Models;
@@ -36,6 +37,8 @@ public partial class MainWindow : Window
     private ForegroundAppSnapshot? _currentApp;
     private MemoKind _selectedKind = MemoKind.Note;
     private bool _hasInitialPlacement;
+    private bool _isRecycleBin;
+    private bool _isGlobalSearch;
 
     public MainWindow(
         MemoRepository repository,
@@ -133,6 +136,8 @@ public partial class MainWindow : Window
         FallbackIcon.Text = GetFallbackLetter(snapshot.Descriptor.DisplayName);
         FallbackIcon.Visibility = snapshot.Icon is null ? Visibility.Visible : Visibility.Collapsed;
 
+        GlobalSearchToggle.IsChecked = false;
+        _isGlobalSearch = false;
         SearchBox.Clear();
         RefreshEntries();
     }
@@ -195,7 +200,35 @@ public partial class MainWindow : Window
         if (_currentNotebook is null)
         {
             EntryList.ItemsSource = null;
-            EmptyState.Visibility = Visibility.Visible;
+            ShowEmptyState(true, "还没有记录", "点击下方按钮添加第一条");
+            return;
+        }
+
+        if (_isRecycleBin)
+        {
+            NewEntryButton.Visibility = Visibility.Collapsed;
+            var deleted = MemoQuery
+                .FilterDeleted(_currentNotebook.Entries, SearchBox.Text)
+                .ToList();
+            EntryList.ItemsSource = deleted.Select(entry => new EntryView(entry)).ToList();
+            ShowEmptyState(deleted.Count == 0, "回收站是空的", "删除的记录会保留在这里，可恢复或彻底删除");
+            return;
+        }
+
+        NewEntryButton.Visibility = Visibility.Visible;
+
+        if (_isGlobalSearch)
+        {
+            var results = MemoQuery
+                .SearchAll(
+                    _repository.Database.Apps.Where(notebook =>
+                        !string.Equals(notebook.AppId, WelcomeAppId, StringComparison.OrdinalIgnoreCase)),
+                    SearchBox.Text)
+                .ToList();
+            EntryList.ItemsSource = results
+                .Select(result => new EntryView(result.Entry, result.Notebook.DisplayName))
+                .ToList();
+            ShowEmptyState(results.Count == 0, "没有找到匹配的记录", "试试其他关键词，或关闭全局搜索");
             return;
         }
 
@@ -203,8 +236,15 @@ public partial class MainWindow : Window
             .Filter(_currentNotebook.Entries, _selectedKind, SearchBox.Text)
             .ToList();
 
-        EntryList.ItemsSource = entries;
-        EmptyState.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        EntryList.ItemsSource = entries.Select(entry => new EntryView(entry)).ToList();
+        ShowEmptyState(entries.Count == 0, "还没有记录", "点击下方按钮添加第一条");
+    }
+
+    private void ShowEmptyState(bool isEmpty, string title, string hint)
+    {
+        EmptyState.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
+        EmptyStateTitle.Text = title;
+        EmptyStateHint.Text = hint;
     }
 
     private void HandleGlobalHotKey()
@@ -219,7 +259,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var editor = new EditorWindow(_selectedKind, existing)
+        var editor = new EditorWindow(existing?.Kind ?? _selectedKind, existing)
         {
             Owner = this
         };
@@ -267,6 +307,35 @@ public partial class MainWindow : Window
 
     private void DeleteEntry(MemoEntry entry)
     {
+        var result = WpfMessageBox.Show(
+            this,
+            $"确定删除“{entry.Title}”吗？",
+            "删除记录",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        // 软删除：记录仍保留在数据中，可从回收站恢复。
+        var previousDeleted = entry.IsDeleted;
+        MutateWithRollback(
+            mutate: () => entry.IsDeleted = true,
+            rollback: () => entry.IsDeleted = previousDeleted);
+    }
+
+    private void RestoreEntry(MemoEntry entry)
+    {
+        var previousDeleted = entry.IsDeleted;
+        MutateWithRollback(
+            mutate: () => entry.IsDeleted = false,
+            rollback: () => entry.IsDeleted = previousDeleted);
+    }
+
+    private void DeleteForever(MemoEntry entry)
+    {
         if (_currentNotebook is null)
         {
             return;
@@ -274,8 +343,8 @@ public partial class MainWindow : Window
 
         var result = WpfMessageBox.Show(
             this,
-            $"确定删除“{entry.Title}”吗？",
-            "删除记录",
+            $"彻底删除“{entry.Title}”吗？此操作无法撤销。",
+            "彻底删除",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
 
@@ -292,7 +361,7 @@ public partial class MainWindow : Window
 
     private void TodoCheckBox_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not WpfCheckBox { DataContext: MemoEntry entry })
+        if (sender is not WpfCheckBox { DataContext: EntryView { Entry: MemoEntry entry } })
         {
             return;
         }
@@ -357,16 +426,22 @@ public partial class MainWindow : Window
 
     private void CardMenu_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not WpfButton { Tag: MemoEntry entry } button)
+        if (sender is not WpfButton { Tag: EntryView view } button)
         {
             return;
         }
 
-        var menu = ContextMenuBuilder.CreateCardMenu(
-            button,
-            entry,
-            onEdit: OpenEditor,
-            onDelete: DeleteEntry);
+        var menu = _isRecycleBin
+            ? ContextMenuBuilder.CreateRecycleMenu(
+                button,
+                view.Entry,
+                onRestore: RestoreEntry,
+                onDeleteForever: DeleteForever)
+            : ContextMenuBuilder.CreateCardMenu(
+                button,
+                view.Entry,
+                onEdit: OpenEditor,
+                onDelete: DeleteEntry);
 
         menu.IsOpen = true;
     }
@@ -383,11 +458,39 @@ public partial class MainWindow : Window
             return;
         }
 
-        _selectedKind = tag == "Todo" ? MemoKind.Todo : MemoKind.Note;
+        _isRecycleBin = tag == "Recycle";
+        if (_isRecycleBin)
+        {
+            GlobalSearchToggle.IsChecked = false;
+            _isGlobalSearch = false;
+        }
+        else
+        {
+            _selectedKind = tag == "Todo" ? MemoKind.Todo : MemoKind.Note;
+        }
+
         if (IsLoaded)
         {
             RefreshEntries();
         }
+    }
+
+    private void GlobalSearchToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton toggle)
+        {
+            return;
+        }
+
+        if (_isRecycleBin)
+        {
+            // 回收站模式下全局搜索不生效，保持开关关闭。
+            toggle.IsChecked = false;
+            return;
+        }
+
+        _isGlobalSearch = toggle.IsChecked == true;
+        RefreshEntries();
     }
 
     private void SearchBox_TextChanged(object sender, WpfTextChangedEventArgs e)
@@ -455,5 +558,15 @@ public partial class MainWindow : Window
         Height = Math.Min(Height, workArea.Height - DockEdgeMargin * 2);
         Left = workArea.Right - Width - DockEdgeMargin;
         Top = workArea.Top + Math.Max(DockEdgeMargin, (workArea.Height - Height) / 2);
+    }
+
+    /// <summary>列表卡片的视图包装：记录本身及其所属软件名（全局搜索时显示）。</summary>
+    private sealed class EntryView(MemoEntry entry, string appName = "")
+    {
+        public MemoEntry Entry { get; } = entry;
+
+        public string AppName { get; } = appName;
+
+        public bool HasAppName => AppName.Length > 0;
     }
 }

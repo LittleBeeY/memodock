@@ -15,8 +15,13 @@ namespace MemoDock.Services;
 /// <summary>识别当前前台窗口所属的软件，并提供其图标。</summary>
 public sealed class ForegroundAppService
 {
+    private readonly Dictionary<string, ImageSource> _iconCache = new(StringComparer.OrdinalIgnoreCase);
+    private IntPtr _lastForegroundHandle;
+    private ForegroundAppSnapshot? _lastSnapshot;
+
     /// <summary>
-    /// 获取当前前台应用快照。
+    /// 获取当前前台应用快照。前台窗口未变化时直接返回上次结果，
+    /// 避免反复读取 exe 元数据与提取图标。
     /// </summary>
     /// <returns>前台应用快照；遇到桌面、本进程或无法识别的情况返回 <c>null</c>。</returns>
     public ForegroundAppSnapshot? TryGetForegroundApp()
@@ -27,6 +32,28 @@ public sealed class ForegroundAppService
             return null;
         }
 
+        if (windowHandle == _lastForegroundHandle)
+        {
+            return _lastSnapshot;
+        }
+
+        var snapshot = TryBuildSnapshot(windowHandle);
+        _lastForegroundHandle = windowHandle;
+        _lastSnapshot = snapshot;
+        return snapshot;
+    }
+
+    /// <summary>
+    /// 由已知的软件身份构建快照（用于手动切换）。
+    /// </summary>
+    public ForegroundAppSnapshot CreateSnapshot(AppDescriptor descriptor)
+    {
+        return new ForegroundAppSnapshot(descriptor, TryGetIcon(descriptor.ExecutablePath));
+    }
+
+    /// <summary>根据前台窗口句柄识别软件；任何失败都降级为 <c>null</c>，不让进程崩溃。</summary>
+    private ForegroundAppSnapshot? TryBuildSnapshot(IntPtr windowHandle)
+    {
         if (IsWindowsShellSurface(windowHandle))
         {
             return null;
@@ -49,22 +76,11 @@ public sealed class ForegroundAppService
                 new AppDescriptor(appId, displayName, executablePath),
                 TryGetIcon(executablePath));
         }
-        catch (ArgumentException)
+        catch (Exception)
         {
+            // 前台识别是尽力而为：识别失败不应影响应用运行。
             return null;
         }
-        catch (InvalidOperationException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// 由已知的软件身份构建快照（用于手动切换）。
-    /// </summary>
-    public ForegroundAppSnapshot CreateSnapshot(AppDescriptor descriptor)
-    {
-        return new ForegroundAppSnapshot(descriptor, TryGetIcon(descriptor.ExecutablePath));
     }
 
     /// <summary>判断窗口是否为任务栏、桌面等系统外壳表面。</summary>
@@ -121,50 +137,38 @@ public sealed class ForegroundAppService
         return process.ProcessName;
     }
 
-    /// <summary>提取可执行文件的关联图标；失败时返回 <c>null</c>。</summary>
-    private static ImageSource? TryGetIcon(string executablePath)
+    /// <summary>提取可执行文件的关联图标（带缓存）；失败时返回 <c>null</c>。</summary>
+    private ImageSource? TryGetIcon(string executablePath)
     {
         if (string.IsNullOrWhiteSpace(executablePath))
         {
             return null;
         }
 
-        var icon = TryExtractAssociatedIcon(executablePath)
-            ?? TryExtractShellIcon(executablePath);
-
-        if (icon is null)
+        if (_iconCache.TryGetValue(executablePath, out var cached))
         {
-            return null;
+            return cached;
         }
 
-        using (icon)
+        var image = TryGetAssociatedIconImage(executablePath)
+            ?? TryGetShellIconImage(executablePath);
+
+        if (image is not null)
         {
-            try
-            {
-                var image = Imaging.CreateBitmapSourceFromHIcon(
-                    icon.Handle,
-                    Int32Rect.Empty,
-                    BitmapSizeOptions.FromEmptyOptions());
-                image.Freeze();
-                return image;
-            }
-            catch (ArgumentException)
-            {
-                return null;
-            }
-            catch (ExternalException)
-            {
-                return null;
-            }
+            _iconCache[executablePath] = image;
         }
+
+        return image;
     }
 
-    /// <summary>通过文件关联直接提取图标。</summary>
-    private static Icon? TryExtractAssociatedIcon(string executablePath)
+    /// <summary>通过文件关联直接提取图标并转为位图源。</summary>
+    private static ImageSource? TryGetAssociatedIconImage(string executablePath)
     {
+        Icon? icon = null;
         try
         {
-            return Icon.ExtractAssociatedIcon(executablePath);
+            icon = Icon.ExtractAssociatedIcon(executablePath);
+            return icon is null ? null : CreateImageSource(icon.Handle);
         }
         catch (Exception exception) when (
             exception is ArgumentException or
@@ -173,13 +177,18 @@ public sealed class ForegroundAppService
         {
             return null;
         }
+        finally
+        {
+            icon?.Dispose();
+        }
     }
 
     /// <summary>
-    /// 通过 Shell API（SHGetFileInfo）提取图标；对商店应用、
+    /// 通过 Shell API（SHGetFileInfo）提取图标并转为位图源；对商店应用、
     /// 浏览器等 ExtractAssociatedIcon 失败的情况更可靠。
+    /// 返回的 HICON 句柄在转换后立即释放，避免句柄泄漏。
     /// </summary>
-    private static Icon? TryExtractShellIcon(string executablePath)
+    private static ImageSource? TryGetShellIconImage(string executablePath)
     {
         var info = new ShFileInfo();
         var handle = SHGetFileInfo(
@@ -196,11 +205,30 @@ public sealed class ForegroundAppService
 
         try
         {
-            return Icon.FromHandle(info.HIcon);
+            return CreateImageSource(info.HIcon);
         }
-        catch (Exception exception) when (
-            exception is ArgumentException or
-            ExternalException)
+        finally
+        {
+            DestroyIcon(info.HIcon);
+        }
+    }
+
+    private static ImageSource? CreateImageSource(IntPtr iconHandle)
+    {
+        try
+        {
+            var image = Imaging.CreateBitmapSourceFromHIcon(
+                iconHandle,
+                Int32Rect.Empty,
+                BitmapSizeOptions.FromEmptyOptions());
+            image.Freeze();
+            return image;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (ExternalException)
         {
             return null;
         }
@@ -229,6 +257,10 @@ public sealed class ForegroundAppService
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr windowHandle, StringBuilder className, int maximumCount);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DestroyIcon(IntPtr iconHandle);
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr SHGetFileInfo(

@@ -6,7 +6,7 @@ namespace MemoDock.Core.Services;
 public static class MemoMigrator
 {
     /// <summary>当前数据库结构版本。</summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>
     /// 将数据库迁移到最新版本。

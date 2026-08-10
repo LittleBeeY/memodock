@@ -9,6 +9,7 @@ public sealed class MemoEntry : INotifyPropertyChanged
     private string _title = string.Empty;
     private string _body = string.Empty;
     private bool _isCompleted;
+    private bool _isDeleted;
 
     /// <summary>记录唯一标识。</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -35,6 +36,13 @@ public sealed class MemoEntry : INotifyPropertyChanged
     {
         get => _isCompleted;
         set => SetField(ref _isCompleted, value);
+    }
+
+    /// <summary>是否已删除（软删除）。已删除记录仍保留在数据文件中，可从回收站恢复。</summary>
+    public bool IsDeleted
+    {
+        get => _isDeleted;
+        set => SetField(ref _isDeleted, value);
     }
 
     /// <summary>最后更新时间，用于排序与冲突合并。</summary>

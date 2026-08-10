@@ -4,6 +4,17 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ## [Unreleased]
 
+### Added
+
+- Global search across all apps; results are labeled with their owning app.
+- Recycle bin: deletion is now a soft delete; records can be restored or permanently removed (schema v3).
+- Rolling backups: `.bak` and `.bak.1` are preserved before overwrite, and load falls back to the older backup if the newest one is corrupt.
+
+### Fixed
+
+- Fixed a HICON handle leak in icon extraction that could exhaust GDI resources over long sessions.
+- Foreground polling now short-circuits on the window handle and caches icons per executable path, avoiding repeated exe metadata reads every 800 ms.
+
 ### Internal
 
 - Added English translations for user-facing docs (README, contributing guide, security policy, changelog) with language switcher links.

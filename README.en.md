@@ -28,13 +28,15 @@ MemoDock detects the app that was last in the foreground and automatically switc
 - Keeps the current app when clicking the taskbar or desktop
 - Two record types: notes and todos
 - Search, create, edit and delete within the current app
+- Global search across all apps, with the owning app labeled
+- Recycle bin: deleted records can be restored or permanently removed
 - Todo completion state
 - `Ctrl + Alt + N` global hotkey
 - Single instance; relaunch only brings up the existing window
 - Drag, resize, and remembered window size/position
 - Closes to the system tray; tray menu can export a data backup
 - Windows 11 Desktop Acrylic, rounded corners and dark theme
-- Previous data is preserved before overwrite; corrupt files trigger a backup restore
+- Two rolling backups preserved before overwrite; corrupt main files fall back to older backups
 - No account, no telemetry, no cloud dependency
 
 ## Quick Start
@@ -70,9 +72,10 @@ MemoDock never uploads your records and depends on no network service. Data is s
 | --- | --- |
 | `%LOCALAPPDATA%\MemoDock\memos.json` | Current notes and todos |
 | `%LOCALAPPDATA%\MemoDock\memos.json.bak` | Previous data before overwrite |
+| `%LOCALAPPDATA%\MemoDock\memos.json.bak.1` | One older generation of history |
 | `%LOCALAPPDATA%\MemoDock\window.json` | Window size and position |
 
-Saving writes a temporary file first, then atomically replaces the target. If the main JSON is corrupt, the original file is kept under a new name and the `.bak` is restored automatically. Old data is migrated on load: normal desktop apps keep the full EXE path as their key, while Store apps use a version-stable identity and records from before/after upgrades are merged. A `.bak` is also produced before migration.
+Saving writes a temporary file first, then atomically replaces the target while rolling two generations of history. If the main JSON is corrupt, the original file is kept under a new name and `.bak`, then `.bak.1`, are tried in order. Old data is migrated on load: normal desktop apps keep the full EXE path as their key, while Store apps use a version-stable identity and records from before/after upgrades are merged. A backup is also produced before migration.
 
 > "Local-private" means the data never leaves this computer; records are currently stored as plaintext JSON, which is not the same as encrypted storage.
 
@@ -90,7 +93,10 @@ Current self-tests cover:
 
 - Per-app record isolation and persistence
 - Title and body search
+- Global search across apps
+- Soft delete, recycle bin and restore
 - Corrupt-data recovery from the previous version
+- Rolling backups and fallback to an older generation
 - Backup retention before saving
 - Data export copies
 - Stable identity and migration for Store app upgrades

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -27,11 +28,16 @@ public partial class MainWindow : Window
     /// <summary>停靠到工作区右侧时的外边距。</summary>
     private const double DockEdgeMargin = 12;
 
+    /// <summary>保存防抖间隔：连续修改合并为一次写盘。</summary>
+    private static readonly TimeSpan SaveDebounceInterval = TimeSpan.FromMilliseconds(400);
+
     private readonly MemoRepository _repository;
     private readonly ForegroundAppService _foregroundApps;
     private readonly DispatcherTimer _foregroundTimer;
+    private readonly DispatcherTimer _saveTimer;
     private readonly HotKeyService _hotKey = new();
     private readonly WindowStateService _windowState = new();
+    private bool _savePending;
 
     private AppNotebook? _currentNotebook;
     private ForegroundAppSnapshot? _currentApp;
@@ -53,6 +59,9 @@ public partial class MainWindow : Window
 
         _foregroundTimer = new DispatcherTimer { Interval = ForegroundPollInterval };
         _foregroundTimer.Tick += ForegroundTimer_Tick;
+
+        _saveTimer = new DispatcherTimer { Interval = SaveDebounceInterval };
+        _saveTimer.Tick += SaveTimer_Tick;
 
         SourceInitialized += MainWindow_SourceInitialized;
         Closed += MainWindow_Closed;
@@ -98,6 +107,7 @@ public partial class MainWindow : Window
     private void MainWindow_Closed(object? sender, EventArgs e)
     {
         _foregroundTimer.Stop();
+        _saveTimer.Stop();
         _hotKey.Dispose();
     }
 
@@ -279,29 +289,16 @@ public partial class MainWindow : Window
                 UpdatedAt = DateTimeOffset.Now
             };
 
-            MutateWithRollback(
-                mutate: () => _currentNotebook.Entries.Add(entry),
-                rollback: () => _currentNotebook.Entries.Remove(entry));
+            CommitMutation(() => _currentNotebook.Entries.Add(entry));
         }
         else
         {
-            var previousTitle = existing.Title;
-            var previousBody = existing.Body;
-            var previousUpdatedAt = existing.UpdatedAt;
-
-            MutateWithRollback(
-                mutate: () =>
-                {
-                    existing.Title = editor.EntryTitle;
-                    existing.Body = editor.EntryBody;
-                    existing.UpdatedAt = DateTimeOffset.Now;
-                },
-                rollback: () =>
-                {
-                    existing.Title = previousTitle;
-                    existing.Body = previousBody;
-                    existing.UpdatedAt = previousUpdatedAt;
-                });
+            CommitMutation(() =>
+            {
+                existing.Title = editor.EntryTitle;
+                existing.Body = editor.EntryBody;
+                existing.UpdatedAt = DateTimeOffset.Now;
+            });
         }
     }
 
@@ -320,18 +317,12 @@ public partial class MainWindow : Window
         }
 
         // 软删除：记录仍保留在数据中，可从回收站恢复。
-        var previousDeleted = entry.IsDeleted;
-        MutateWithRollback(
-            mutate: () => entry.IsDeleted = true,
-            rollback: () => entry.IsDeleted = previousDeleted);
+        CommitMutation(() => entry.IsDeleted = true);
     }
 
     private void RestoreEntry(MemoEntry entry)
     {
-        var previousDeleted = entry.IsDeleted;
-        MutateWithRollback(
-            mutate: () => entry.IsDeleted = false,
-            rollback: () => entry.IsDeleted = previousDeleted);
+        CommitMutation(() => entry.IsDeleted = false);
     }
 
     private void DeleteForever(MemoEntry entry)
@@ -354,9 +345,7 @@ public partial class MainWindow : Window
         }
 
         var index = _currentNotebook.Entries.IndexOf(entry);
-        MutateWithRollback(
-            mutate: () => _currentNotebook.Entries.Remove(entry),
-            rollback: () => _currentNotebook.Entries.Insert(index, entry));
+        CommitMutation(() => _currentNotebook.Entries.Remove(entry));
     }
 
     private void TodoCheckBox_Click(object sender, RoutedEventArgs e)
@@ -366,32 +355,75 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 双向绑定已在 Click 前把 IsCompleted 更新为勾选后的新值，
-        // 因此取反得到勾选前的旧值，用于保存失败时回滚。
-        var previousCompleted = !entry.IsCompleted;
-        var previousUpdatedAt = entry.UpdatedAt;
-
-        MutateWithRollback(
-            mutate: () => entry.UpdatedAt = DateTimeOffset.Now,
-            rollback: () =>
-            {
-                entry.IsCompleted = previousCompleted;
-                entry.UpdatedAt = previousUpdatedAt;
-            });
+        // 双向绑定已在 Click 前把 IsCompleted 更新为勾选后的新值。
+        CommitMutation(() => entry.UpdatedAt = DateTimeOffset.Now);
     }
 
-    /// <summary>先执行修改，保存失败时回滚并刷新列表。</summary>
-    private void MutateWithRollback(Action mutate, Action rollback)
+    /// <summary>执行内存修改并立即刷新列表，落盘通过防抖定时器合并。</summary>
+    private void CommitMutation(Action mutate)
     {
         mutate();
-        if (!TrySaveAndRefresh())
+        RefreshEntries();
+        ScheduleSave();
+    }
+
+    /// <summary>启动防抖保存；已有未落盘修改时保持等待，合并为一次写盘。</summary>
+    private void ScheduleSave()
+    {
+        _savePending = true;
+        _saveTimer.Start();
+    }
+
+    private void SaveTimer_Tick(object? sender, EventArgs e)
+    {
+        _saveTimer.Stop();
+        if (!_savePending)
         {
-            rollback();
-            RefreshEntries();
+            return;
+        }
+
+        _savePending = false;
+        if (!TrySave())
+        {
+            // 保存失败：放弃未落盘的改动，从磁盘恢复到最近一次成功状态。
+            ReloadCurrentNotebook();
         }
     }
 
-    private bool TrySaveAndRefresh()
+    /// <summary>隐藏窗口或退出前强制写盘未保存的修改。</summary>
+    private void FlushPendingSave()
+    {
+        if (!_savePending)
+        {
+            return;
+        }
+
+        _saveTimer.Stop();
+        _savePending = false;
+        TrySave();
+    }
+
+    /// <summary>从磁盘重新加载数据库并重新绑定当前软件，保留搜索与页签状态。</summary>
+    private void ReloadCurrentNotebook()
+    {
+        try
+        {
+            _repository.Load();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        if (_currentApp is not null)
+        {
+            _currentNotebook = _repository.GetOrCreateNotebook(_currentApp.Descriptor);
+        }
+
+        RefreshEntries();
+    }
+
+    private bool TrySave()
     {
         try
         {
@@ -417,10 +449,6 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return false;
-        }
-        finally
-        {
-            RefreshEntries();
         }
     }
 
@@ -530,6 +558,24 @@ public partial class MainWindow : Window
         if (e.Key == Key.Escape)
         {
             HideDock();
+            return;
+        }
+
+        if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            return;
+        }
+
+        if (e.Key == Key.N && !_isRecycleBin)
+        {
+            OpenEditor();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F)
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+            e.Handled = true;
         }
     }
 
@@ -537,6 +583,7 @@ public partial class MainWindow : Window
     {
         if (AllowClose)
         {
+            FlushPendingSave();
             _windowState.Save(this);
             return;
         }
@@ -547,18 +594,88 @@ public partial class MainWindow : Window
 
     private void HideDock()
     {
+        FlushPendingSave();
         _windowState.Save(this);
         Hide();
     }
 
+    /// <summary>
+    /// 停靠到前台软件所在显示器右侧；无法确定前台显示器时回退到主工作区。
+    /// </summary>
     private void DockToRightEdge()
     {
-        var workArea = SystemParameters.WorkArea;
+        var workArea = TryGetForegroundWorkArea() ?? PrimaryWorkArea;
         Width = Math.Min(Width, workArea.Width - DockEdgeMargin * 2);
         Height = Math.Min(Height, workArea.Height - DockEdgeMargin * 2);
         Left = workArea.Right - Width - DockEdgeMargin;
         Top = workArea.Top + Math.Max(DockEdgeMargin, (workArea.Height - Height) / 2);
     }
+
+    private static Rect PrimaryWorkArea => SystemParameters.WorkArea;
+
+    /// <summary>取前台窗口所在显示器的工作区（换算为设备无关单位）；失败时返回 <c>null</c>。</summary>
+    private Rect? TryGetForegroundWorkArea()
+    {
+        var windowHandle = _foregroundApps.TryGetForegroundWindowHandle();
+        if (windowHandle == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        var monitor = MonitorFromWindow(windowHandle, MonitorDefaultToNearest);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info))
+        {
+            return null;
+        }
+
+        return MonitorWorkAreaToDips(monitor, info);
+    }
+
+    private static Rect MonitorWorkAreaToDips(IntPtr monitor, MonitorInfo info)
+    {
+        // 显示器工作区是物理像素，需按该显示器 DPI 换算为 DIP 供 WPF 使用。
+        _ = GetDpiForMonitor(monitor, MonitorDpiTypeEffective, out var dpiX, out _);
+        var scale = 96.0 / dpiX;
+        var left = info.Work.Left * scale;
+        var top = info.Work.Top * scale;
+        return new Rect(
+            left,
+            top,
+            (info.Work.Right - info.Work.Left) * scale,
+            (info.Work.Bottom - info.Work.Top) * scale);
+    }
+
+    private const uint MonitorDefaultToNearest = 2;
+    private const int MonitorDpiTypeEffective = 0;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public NativeRect Monitor;
+        public NativeRect Work;
+        public uint Flags;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr windowHandle, uint flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+
+    [DllImport("shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr monitor, int dpiType, out uint dpiX, out uint dpiY);
 
     /// <summary>列表卡片的视图包装：记录本身及其所属软件名（全局搜索时显示）。</summary>
     private sealed class EntryView(MemoEntry entry, string appName = "")

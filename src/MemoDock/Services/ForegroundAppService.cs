@@ -51,6 +51,12 @@ public sealed class ForegroundAppService
         return new ForegroundAppSnapshot(descriptor, TryGetIcon(descriptor.ExecutablePath));
     }
 
+    /// <summary>当前前台窗口句柄；获取失败时返回 <see cref="IntPtr.Zero"/>。</summary>
+    public IntPtr TryGetForegroundWindowHandle()
+    {
+        return GetForegroundWindow();
+    }
+
     /// <summary>根据前台窗口句柄识别软件；任何失败都降级为 <c>null</c>，不让进程崩溃。</summary>
     private ForegroundAppSnapshot? TryBuildSnapshot(IntPtr windowHandle)
     {

@@ -15,6 +15,8 @@ Run("回收站只返回已删除记录", RecycleBinListsDeletedOnly, failures);
 Run("跨软件全局搜索", GlobalSearchFindsAcrossApps, failures);
 Run("滚动备份保留两级历史", RollingBackupKeepsTwoGenerations, failures);
 Run("主备份损坏时回退到历史备份", RecoversFromOlderBackup, failures);
+Run("多关键词搜索需全部命中", MultiKeywordSearchRequiresAll, failures);
+Run("待办未完成项排在已完成项之前", TodoActiveItemsSortBeforeCompleted, failures);
 
 if (failures.Count > 0)
 {
@@ -272,6 +274,35 @@ static void RecoversFromOlderBackup()
 
     Assert(recovered.Database.Apps.Single().Entries.Single().Title == "可恢复的旧版", "主备份损坏时应回退到更早的滚动备份。");
     Assert(Directory.GetFiles(sandbox.Path, "memos.json.corrupt-*").Length == 1, "损坏的主文件应保留。");
+}
+
+static void MultiKeywordSearchRequiresAll()
+{
+    var entries = new[]
+    {
+        new MemoEntry { Kind = MemoKind.Note, Title = "发布清单", Body = "检查快捷键" },
+        new MemoEntry { Kind = MemoKind.Note, Title = "发布记录", Body = "版本历史" },
+        new MemoEntry { Kind = MemoKind.Note, Title = "快捷键备忘" }
+    };
+
+    Assert(MemoQuery.Filter(entries, MemoKind.Note, "发布 快捷键").Single().Title == "发布清单", "多关键词应要求全部命中。");
+    Assert(MemoQuery.Filter(entries, MemoKind.Note, "发布").Count() == 2, "单关键词仍应正常命中。");
+}
+
+static void TodoActiveItemsSortBeforeCompleted()
+{
+    var entries = new[]
+    {
+        new MemoEntry { Kind = MemoKind.Todo, Title = "已完成", IsCompleted = true, UpdatedAt = new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero) },
+        new MemoEntry { Kind = MemoKind.Todo, Title = "待办A", IsCompleted = false, UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+        new MemoEntry { Kind = MemoKind.Todo, Title = "待办B", IsCompleted = false, UpdatedAt = new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero) }
+    };
+
+    var ordered = MemoQuery.Filter(entries, MemoKind.Todo, null).ToList();
+    Assert(ordered.Count == 3, "待办过滤不应丢记录。");
+    Assert(ordered[0].Title == "待办B", "未完成项应先出现，且按更新时间倒序。");
+    Assert(ordered[1].Title == "待办A", "未完成项内部应按更新时间倒序。");
+    Assert(ordered[2].Title == "已完成", "已完成项应沉底。");
 }
 
 static void Run(string name, Action test, ICollection<string> failures)

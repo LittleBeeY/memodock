@@ -19,6 +19,8 @@ Run("多关键词搜索需全部命中", MultiKeywordSearchRequiresAll, failures
 Run("待办未完成项排在已完成项之前", TodoActiveItemsSortBeforeCompleted, failures);
 Run("合并冲突记录按更新时间取新", MergeTakesNewerEntry, failures);
 Run("主文件缺失时从备份恢复", MissingMainFallsBackToBackup, failures);
+Run("从备份恢复后也执行迁移", BackupRestoreAlsoMigrates, failures);
+Run("超大数据库文件视为损坏", OversizedDatabaseRejectedAsCorrupt, failures);
 Run("原子写覆盖时保留上一版备份", AtomicWriteKeepsBackup, failures);
 Run("原子写不保留备份路径", AtomicWriteWithoutBackup, failures);
 Run("全部备份损坏时回退为空数据库", AllBackupsCorruptFallsBackToEmpty, failures);
@@ -385,6 +387,56 @@ static void MissingMainFallsBackToBackup()
 
     Assert(recovered.Database.Apps.Single().Entries.Single().Title == "崩溃前的数据", "主文件缺失时应从备份恢复。");
     Assert(File.Exists(path), "恢复后应重新写出主文件。");
+}
+
+static void BackupRestoreAlsoMigrates()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+
+    // 主文件缺失，仅有 v3 格式的备份（无 CreatedAt 字段）。
+    File.WriteAllText(path + ".bak", """
+        {
+          "Version": 3,
+          "Apps": [
+            {
+              "AppId": "editor.exe",
+              "DisplayName": "编辑器",
+              "ExecutablePath": "C:\\Apps\\editor.exe",
+              "Entries": [
+                {
+                  "Kind": "Note",
+                  "Title": "旧记录",
+                  "UpdatedAt": "2026-01-15T10:00:00+08:00"
+                }
+              ]
+            }
+          ]
+        }
+        """);
+
+    var repository = new MemoRepository(path);
+    repository.Load();
+
+    Assert(repository.Database.Version == MemoMigrator.CurrentVersion, "从备份恢复后也应迁移到当前版本。");
+    Assert(repository.Database.Apps.Single().Entries.Single().CreatedAt != default, "恢复的旧记录应补全创建时间。");
+}
+
+static void OversizedDatabaseRejectedAsCorrupt()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+    using (var stream = File.Create(path))
+    {
+        // 稀疏文件：直接声明 51MB 大小，内容为空洞，无需真正写大量数据。
+        stream.SetLength(51 * 1024 * 1024);
+    }
+
+    var repository = new MemoRepository(path);
+    repository.Load();
+
+    Assert(repository.Database.Apps.Count == 0, "超大文件应视为损坏并回退为空库。");
+    Assert(Directory.GetFiles(sandbox.Path, "memos.json.corrupt-*").Length == 1, "超大文件应被保留。");
 }
 
 static void AtomicWriteKeepsBackup()

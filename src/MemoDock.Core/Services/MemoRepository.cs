@@ -10,6 +10,9 @@ public sealed class MemoRepository
     /// <summary>保留的历史备份份数（<c>.bak</c> 与 <c>.bak.1</c>）。</summary>
     private const int BackupCount = 2;
 
+    /// <summary>数据文件大小上限。正常记录远小于此值，仅用于拦截异常文件。</summary>
+    private const long MaxDatabaseFileSize = 50 * 1024 * 1024;
+
     private readonly string _databasePath;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -45,25 +48,22 @@ public sealed class MemoRepository
             // 主文件不存在：首次启动（无备份）返回空库；若留下备份
             // （写入中途崩溃），则从备份恢复而不是误判为空库。
             Database = TryReadBackupChain() ?? new MemoDatabase();
-            if (Database.Apps.Count > 0)
+        }
+        else
+        {
+            try
             {
-                Save();
+                Database = ReadDatabase(_databasePath);
             }
-
-            return;
+            catch (JsonException)
+            {
+                PreserveCorruptDatabase();
+                CleanupCorruptBackups();
+                Database = TryReadBackupChain() ?? new MemoDatabase();
+            }
         }
 
-        try
-        {
-            Database = ReadDatabase(_databasePath);
-        }
-        catch (JsonException)
-        {
-            PreserveCorruptDatabase();
-            CleanupCorruptBackups();
-            Database = TryReadBackupChain() ?? new MemoDatabase();
-        }
-
+        // 正常加载与从备份恢复都统一走迁移，保证旧版本数据被安全升级。
         if (MemoMigrator.Migrate(Database))
         {
             Save();
@@ -138,27 +138,44 @@ public sealed class MemoRepository
             return;
         }
 
-        var staleFiles = Directory.EnumerateFiles(directory, prefix + "*")
-            .OrderByDescending(path => path)
-            .Skip(10);
-        foreach (var file in staleFiles)
+        try
         {
-            try
+            var staleFiles = Directory.EnumerateFiles(directory, prefix + "*")
+                .OrderByDescending(path => path)
+                .Skip(10);
+            foreach (var file in staleFiles)
             {
-                File.Delete(file);
+                try
+                {
+                    File.Delete(file);
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
             }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException)
+        {
+            // 清理损坏快照失败不应阻断主文件的损坏恢复流程。
         }
     }
 
     /// <summary>读取并反序列化数据库文件；内容为 null 时返回空数据库。</summary>
     private MemoDatabase ReadDatabase(string path)
     {
+        // 拒绝异常巨大的文件：防止被篡改或异常膨胀的数据文件
+        // 在启动时一次性读入内存导致 OOM。
+        var fileInfo = new FileInfo(path);
+        if (fileInfo.Length > MaxDatabaseFileSize)
+        {
+            throw new JsonException("数据库文件超出大小上限。");
+        }
+
         var json = File.ReadAllText(path);
         return JsonSerializer.Deserialize<MemoDatabase>(json, _jsonOptions) ?? new MemoDatabase();
     }

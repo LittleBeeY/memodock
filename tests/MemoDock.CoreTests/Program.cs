@@ -20,6 +20,8 @@ Run("待办未完成项排在已完成项之前", TodoActiveItemsSortBeforeCompl
 Run("合并冲突记录按更新时间取新", MergeTakesNewerEntry, failures);
 Run("主文件缺失时从备份恢复", MissingMainFallsBackToBackup, failures);
 Run("从备份恢复后也执行迁移", BackupRestoreAlsoMigrates, failures);
+Run("设置持久化往返", SettingsRoundTrip, failures);
+Run("设置文件损坏回退默认", CorruptSettingsFallBackToDefaults, failures);
 Run("超大数据库文件视为损坏", OversizedDatabaseRejectedAsCorrupt, failures);
 Run("原子写覆盖时保留上一版备份", AtomicWriteKeepsBackup, failures);
 Run("原子写不保留备份路径", AtomicWriteWithoutBackup, failures);
@@ -437,6 +439,34 @@ static void OversizedDatabaseRejectedAsCorrupt()
 
     Assert(repository.Database.Apps.Count == 0, "超大文件应视为损坏并回退为空库。");
     Assert(Directory.GetFiles(sandbox.Path, "memos.json.corrupt-*").Length == 1, "超大文件应被保留。");
+}
+
+static void SettingsRoundTrip()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "settings.json");
+    var service = new SettingsService(path);
+    service.Current.HotKeyModifiers = "Control, Shift";
+    service.Current.HotKeyKey = "P";
+    service.Current.LaunchOnStartup = true;
+    service.Save(service.Current);
+
+    var reloaded = new SettingsService(path);
+    Assert(reloaded.Current.HotKeyModifiers == "Control, Shift", "设置应持久化修饰键。");
+    Assert(reloaded.Current.HotKeyKey == "P", "设置应持久化主键。");
+    Assert(reloaded.Current.LaunchOnStartup, "设置应持久化开机自启选项。");
+}
+
+static void CorruptSettingsFallBackToDefaults()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "settings.json");
+    File.WriteAllText(path, "{not-json");
+
+    var service = new SettingsService(path);
+    Assert(service.Current.HotKeyModifiers == "Control, Alt", "损坏的设置应回退默认修饰键。");
+    Assert(service.Current.HotKeyKey == "N", "损坏的设置应回退默认主键。");
+    Assert(!service.Current.LaunchOnStartup, "损坏的设置应回退默认开机自启。");
 }
 
 static void AtomicWriteKeepsBackup()

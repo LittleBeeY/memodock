@@ -618,14 +618,19 @@
                         Content="＋  新建记录"
                         Click="NewEntryButton_Click" />
 
-                <TextBlock x:Name="HotKeyHint"
-                           Grid.Row="5"
-                           Text="Ctrl + Alt + N"
-                           Margin="0,9,0,0"
-                           HorizontalAlignment="Center"
-                           Foreground="{StaticResource TextMutedBrush}"
-                           FontFamily="Segoe UI"
-                           FontSize="11" />
+                <Grid Grid.Row="5" Margin="0,9,0,0">
+                    <TextBlock x:Name="HotKeyHint"
+                               HorizontalAlignment="Center"
+                               Text="Ctrl + Alt + N"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontFamily="Segoe UI"
+                               FontSize="11" />
+                    <Button HorizontalAlignment="Right"
+                            Style="{StaticResource FlatButtonStyle}"
+                            Content="设置"
+                            FontSize="11"
+                            Click="SettingsButton_Click" />
+                </Grid>
             </Grid>
         </Grid>
     </Border>

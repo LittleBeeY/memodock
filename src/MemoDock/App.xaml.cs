@@ -11,6 +11,7 @@ public partial class App : System.Windows.Application
 {
     private MainWindow? _mainWindow;
     private MemoRepository? _repository;
+    private SettingsService? _settings;
     private SingleInstanceService? _singleInstance;
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private Icon? _applicationIcon;
@@ -43,10 +44,12 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        _settings = new SettingsService();
+
         var foregroundApps = new ForegroundAppService();
         var initialApp = foregroundApps.TryGetForegroundApp();
 
-        _mainWindow = new MainWindow(_repository, foregroundApps, initialApp);
+        _mainWindow = new MainWindow(_repository, foregroundApps, _settings, initialApp);
         MainWindow = _mainWindow;
 
         CreateTrayIcon();
@@ -57,6 +60,11 @@ public partial class App : System.Windows.Application
     internal void ShowMainWindow()
     {
         _mainWindow?.ShowDock();
+    }
+
+    private void OpenSettings()
+    {
+        _mainWindow?.OpenSettings();
     }
 
     internal void ExitApplication()
@@ -87,6 +95,7 @@ public partial class App : System.Windows.Application
     {
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("显示 MemoDock", null, (_, _) => Dispatcher.Invoke(ShowMainWindow));
+        menu.Items.Add("设置…", null, (_, _) => Dispatcher.Invoke(OpenSettings));
         menu.Items.Add("导出数据备份…", null, (_, _) => Dispatcher.Invoke(ExportBackup));
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add("退出", null, (_, _) => Dispatcher.Invoke(ExitApplication));

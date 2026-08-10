@@ -12,6 +12,9 @@ public static class AppPaths
     /// <summary>窗口状态文件名。</summary>
     public const string WindowStateFileName = "window.json";
 
+    /// <summary>应用设置文件名。</summary>
+    public const string SettingsFileName = "settings.json";
+
     /// <summary>本地应用数据根目录。</summary>
     public static string LocalAppDataRoot =>
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -24,4 +27,7 @@ public static class AppPaths
 
     /// <summary>窗口状态文件完整路径。</summary>
     public static string WindowStatePath => Path.Combine(AppDataDirectory, WindowStateFileName);
+
+    /// <summary>应用设置文件完整路径。</summary>
+    public static string SettingsPath => Path.Combine(AppDataDirectory, SettingsFileName);
 }

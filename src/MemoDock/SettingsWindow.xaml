@@ -1,0 +1,157 @@
+<Window x:Class="MemoDock.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="设置"
+        Width="380"
+        Height="312"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        FontFamily="{StaticResource AppFont}"
+        Foreground="{StaticResource TextPrimaryBrush}"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Border Background="#F20B1321"
+            BorderBrush="#8D7488A5"
+            BorderThickness="1"
+            CornerRadius="18"
+            Padding="22">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="34"
+                              ShadowDepth="10"
+                              Opacity="0.5"
+                              Color="#02050C" />
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="设置"
+                       FontSize="19"
+                       FontWeight="SemiBold" />
+
+            <TextBlock Grid.Row="1"
+                       Margin="0,20,0,0"
+                       Text="全局快捷键"
+                       FontSize="12.5"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource TextSecondaryBrush}" />
+
+            <Border Grid.Row="2"
+                    Margin="0,8,0,0"
+                    Height="40"
+                    Background="#501D293B"
+                    BorderBrush="#5968798E"
+                    BorderThickness="1"
+                    CornerRadius="9">
+                <Grid>
+                    <TextBox x:Name="HotKeyBox"
+                             IsReadOnly="True"
+                             IsReadOnlyCaretVisible="False"
+                             Cursor="Hand"
+                             Padding="13,0"
+                             VerticalContentAlignment="Center"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             FontSize="13"
+                             TextAlignment="Center"
+                             ToolTip="点击后按下新组合键，Esc 取消"
+                             PreviewKeyDown="HotKeyBox_PreviewKeyDown"
+                             PreviewMouseDown="HotKeyBox_PreviewMouseDown" />
+                    <TextBlock x:Name="HotKeyHint"
+                               Text="点击后按下新组合键（Esc 取消）"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="11"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False" />
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="3" Margin="2,20,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="22" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <CheckBox x:Name="StartupCheck"
+                          Style="{StaticResource TodoCheckStyle}"
+                          VerticalAlignment="Top" />
+
+                <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                    <TextBlock Text="开机自动启动"
+                               FontSize="12.5"
+                               FontWeight="SemiBold" />
+                    <TextBlock Margin="0,4,0,0"
+                               Text="登录系统后自动在托盘运行"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="10.5" />
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="5" Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="92" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="92" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock VerticalAlignment="Center"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontFamily="Segoe UI"
+                           FontSize="10.5"
+                           Text="Esc 取消" />
+
+                <Button Grid.Column="1"
+                        Height="38"
+                        Style="{StaticResource FlatButtonStyle}"
+                        Content="取消"
+                        Click="CancelButton_Click" />
+
+                <Button Grid.Column="3"
+                        Height="38"
+                        Background="{StaticResource SelectedTabBrush}"
+                        BorderBrush="#8B9AA8D6"
+                        BorderThickness="1"
+                        Foreground="#FAFAFD"
+                        FontWeight="Medium"
+                        Cursor="Hand"
+                        Content="保存"
+                        Click="SaveButton_Click">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Surface"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="9">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Surface" Property="Opacity" Value="0.88" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Surface" Property="Opacity" Value="0.68" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

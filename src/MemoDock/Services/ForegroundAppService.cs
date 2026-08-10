@@ -7,20 +7,27 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using MemoDock.Core.Models;
 using MemoDock.Core.Services;
 
 namespace MemoDock.Services;
 
 /// <summary>识别当前前台窗口所属的软件，并提供其图标。</summary>
-public sealed class ForegroundAppService
+public sealed class ForegroundAppService : IDisposable
 {
     /// <summary>图标缓存上限；超过时清空重建，防止长期运行累积。</summary>
     private const int IconCacheLimit = 512;
 
+    private const uint EventSystemForeground = 0x0003;
+    private const uint WineventOutofcontext = 0x0000;
+
     private readonly Dictionary<string, ImageSource> _iconCache = new(StringComparer.OrdinalIgnoreCase);
     private IntPtr _lastForegroundHandle;
     private ForegroundAppSnapshot? _lastSnapshot;
+    private WinEventDelegate? _winEventHookDelegate;
+    private IntPtr _winEventHook;
+    private Dispatcher? _dispatcher;
 
     /// <summary>
     /// 获取当前前台应用快照。前台窗口未变化时直接返回上次结果，
@@ -58,6 +65,69 @@ public sealed class ForegroundAppService
     public IntPtr TryGetForegroundWindowHandle()
     {
         return GetForegroundWindow();
+    }
+
+    /// <summary>前台软件切换时触发（事件驱动，替代高频轮询）。</summary>
+    public event EventHandler? ForegroundChanged;
+
+    /// <summary>
+    /// 开始监听前台窗口切换事件。需在 UI 线程（有消息泵）调用；
+    /// 回调会封送到该线程。
+    /// </summary>
+    public void StartListening()
+    {
+        if (_winEventHook != IntPtr.Zero)
+        {
+            return;
+        }
+
+        _dispatcher = Dispatcher.CurrentDispatcher;
+        _winEventHookDelegate = HandleForegroundEvent;
+        _winEventHook = SetWinEventHook(
+            EventSystemForeground,
+            EventSystemForeground,
+            IntPtr.Zero,
+            _winEventHookDelegate,
+            0,
+            0,
+            WineventOutofcontext);
+    }
+
+    /// <summary>停止监听前台窗口切换事件。</summary>
+    public void StopListening()
+    {
+        if (_winEventHook != IntPtr.Zero)
+        {
+            _ = UnhookWinEvent(_winEventHook);
+            _winEventHook = IntPtr.Zero;
+        }
+
+        _winEventHookDelegate = null;
+        _dispatcher = null;
+    }
+
+    public void Dispose()
+    {
+        StopListening();
+    }
+
+    /// <summary>前台切换事件的回调：只封送通知，不在此处做任何提取工作。</summary>
+    private void HandleForegroundEvent(
+        IntPtr hookHandle,
+        uint eventType,
+        IntPtr windowHandle,
+        int idObject,
+        int idChild,
+        uint eventThread,
+        uint eventTime)
+    {
+        var dispatcher = _dispatcher;
+        if (dispatcher is null || dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        dispatcher.BeginInvoke(() => ForegroundChanged?.Invoke(this, EventArgs.Empty));
     }
 
     /// <summary>根据前台窗口句柄识别软件；任何失败都降级为 <c>null</c>，不让进程崩溃。</summary>
@@ -294,4 +364,27 @@ public sealed class ForegroundAppService
         ref ShFileInfo fileInfo,
         uint fileInfoSize,
         uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWinEventHook(
+        uint eventMin,
+        uint eventMax,
+        IntPtr moduleHandle,
+        WinEventDelegate callback,
+        uint processId,
+        uint threadId,
+        uint flags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnhookWinEvent(IntPtr hookHandle);
+
+    private delegate void WinEventDelegate(
+        IntPtr hookHandle,
+        uint eventType,
+        IntPtr windowHandle,
+        int idObject,
+        int idChild,
+        uint eventThread,
+        uint eventTime);
 }

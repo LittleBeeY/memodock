@@ -22,8 +22,8 @@ public partial class MainWindow : Window
     /// <summary>欢迎页使用的虚拟软件身份。</summary>
     private const string WelcomeAppId = "memodock.welcome";
 
-    /// <summary>前台软件轮询间隔。</summary>
-    private static readonly TimeSpan ForegroundPollInterval = TimeSpan.FromMilliseconds(800);
+    /// <summary>前台软件轮询间隔（兜底）：正常由 WinEvent 事件驱动，轮询仅覆盖事件漏报。</summary>
+    private static readonly TimeSpan ForegroundPollInterval = TimeSpan.FromMilliseconds(2000);
 
     /// <summary>停靠到工作区右侧时的外边距。</summary>
     private const double DockEdgeMargin = 12;
@@ -33,6 +33,7 @@ public partial class MainWindow : Window
 
     private readonly MemoRepository _repository;
     private readonly ForegroundAppService _foregroundApps;
+    private readonly SettingsService _settings;
     private readonly DispatcherTimer _foregroundTimer;
     private readonly DispatcherTimer _saveTimer;
     private readonly HotKeyService _hotKey = new();
@@ -49,12 +50,14 @@ public partial class MainWindow : Window
     public MainWindow(
         MemoRepository repository,
         ForegroundAppService foregroundApps,
+        SettingsService settings,
         ForegroundAppSnapshot? initialApp)
     {
         InitializeComponent();
 
         _repository = repository;
         _foregroundApps = foregroundApps;
+        _settings = settings;
         _hasInitialPlacement = _windowState.TryRestore(this);
 
         _foregroundTimer = new DispatcherTimer { Interval = ForegroundPollInterval };
@@ -63,6 +66,8 @@ public partial class MainWindow : Window
         _saveTimer = new DispatcherTimer { Interval = SaveDebounceInterval };
         _saveTimer.Tick += SaveTimer_Tick;
 
+        _foregroundApps.ForegroundChanged += ForegroundApps_ForegroundChanged;
+
         SourceInitialized += MainWindow_SourceInitialized;
         Closed += MainWindow_Closed;
 
@@ -70,6 +75,9 @@ public partial class MainWindow : Window
             new AppDescriptor(WelcomeAppId, "MemoDock", string.Empty),
             null));
 
+        // 优先用 WinEvent 事件驱动；SetWinEventHook 可能因权限/兼容失败，
+        // 此时轮询兜底仍保证可用。
+        _foregroundApps.StartListening();
         _foregroundTimer.Start();
     }
 
@@ -97,21 +105,89 @@ public partial class MainWindow : Window
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
     {
         WindowEffects.Apply(this);
-        _hotKey.Register(this, HandleGlobalHotKey);
-        if (!_hotKey.IsRegistered)
+        RegisterHotKey();
+    }
+
+    /// <summary>用当前设置注册全局快捷键，并更新提示文本。</summary>
+    private void RegisterHotKey()
+    {
+        var modifiers = ParseModifiers(_settings.Current.HotKeyModifiers);
+        var key = ParseKey(_settings.Current.HotKeyKey);
+        _hotKey.Register(this, modifiers, key, HandleGlobalHotKey);
+
+        var comboText = HotKeyService.FormatCombo(modifiers, key);
+        HotKeyHint.Text = _hotKey.IsRegistered
+            ? comboText
+            : $"{comboText} 已被占用";
+    }
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        OpenSettings();
+    }
+
+    /// <summary>打开设置窗口；保存后应用新设置、重新注册快捷键并同步开机自启。</summary>
+    public void OpenSettings()
+    {
+        var window = new SettingsWindow(_settings.Current, onSave: settings =>
         {
-            HotKeyHint.Text = "Ctrl + Alt + N 已被占用";
+            _settings.Save(settings);
+            RegisterHotKey();
+            ApplyStartupSetting();
+        })
+        {
+            Owner = this
+        };
+        window.ShowDialog();
+    }
+
+    /// <summary>把设置中的开机自启选项同步到注册表；仅在需要变更时写入。</summary>
+    private void ApplyStartupSetting()
+    {
+        var desired = _settings.Current.LaunchOnStartup;
+        if (StartupService.IsEnabled() == desired)
+        {
+            return;
         }
+
+        StartupService.SetEnabled(desired);
+    }
+
+    private static ModifierKeys ParseModifiers(string text)
+    {
+        return Enum.TryParse<ModifierKeys>(text, ignoreCase: true, out var modifiers)
+            ? modifiers
+            : ModifierKeys.Control | ModifierKeys.Alt;
+    }
+
+    private static Key ParseKey(string text)
+    {
+        return Enum.TryParse<Key>(text, ignoreCase: true, out var key) ? key : Key.N;
     }
 
     private void MainWindow_Closed(object? sender, EventArgs e)
     {
         _foregroundTimer.Stop();
         _saveTimer.Stop();
+        _foregroundApps.ForegroundChanged -= ForegroundApps_ForegroundChanged;
+        _foregroundApps.Dispose();
         _hotKey.Dispose();
     }
 
+    /// <summary>WinEvent 事件驱动的前台切换通知。</summary>
+    private void ForegroundApps_ForegroundChanged(object? sender, EventArgs e)
+    {
+        HandleForegroundPoll();
+    }
+
+    /// <summary>轮询兜底（事件漏报时保证可用）。</summary>
     private void ForegroundTimer_Tick(object? sender, EventArgs e)
+    {
+        HandleForegroundPoll();
+    }
+
+    /// <summary>检查前台软件是否变化，变化时切换；未开启自动跟随或识别失败时忽略。</summary>
+    private void HandleForegroundPoll()
     {
         if (AutoFollowToggle.IsChecked != true)
         {

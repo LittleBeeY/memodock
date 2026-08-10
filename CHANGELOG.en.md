@@ -19,6 +19,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - Multi-monitor docking now converts coordinates using the system DPI, fixing misplacement on mixed-DPI setups.
 - Esc inside the hotkey capture box cancels capture instead of closing the settings window.
 - Failed foreground-app identification is no longer cached, so recognition recovers once process info becomes available.
+- The self-contained single-file build now resolves its own executable via `Environment.ProcessPath` for launch-at-startup, eliminating the empty `Assembly.Location` issue.
 
 ## [0.4.0] - 2026-08-10
 

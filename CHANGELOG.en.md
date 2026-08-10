@@ -22,10 +22,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 - Fixed a HICON handle leak in icon extraction that could exhaust GDI resources over long sessions.
 - Foreground polling now short-circuits on the window handle and caches icons per executable path, avoiding repeated exe metadata reads every 800 ms.
-- Load now recovers from a backup when the main file is missing (e.g. a crash mid-save) instead of falling back to an empty database.
-- Corrupt snapshots use millisecond timestamps plus a random suffix to avoid same-second collisions, and only the latest 10 are kept.
+- Load now recovers from a backup when the main file is missing (e.g. a crash mid-save) instead of falling back to an empty database; recovered records are migrated to the current schema version too.
+- Corrupt snapshots use millisecond timestamps plus a random suffix to avoid same-second collisions, and only the latest 10 are kept; cleanup failures no longer block main-file recovery.
 - Icon extraction swallows unexpected exceptions for untrusted paths so manual switching cannot crash on a bad path.
 - Multi-monitor DPI lookup falls back to 96 DPI on failure, avoiding divide-by-zero coordinates.
+- Database files over 50 MB are treated as corrupt and fall back to backups, preventing an oversized file from exhausting memory at startup.
 
 ### Internal
 

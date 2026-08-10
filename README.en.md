@@ -31,10 +31,12 @@ MemoDock detects the app that was last in the foreground and automatically switc
 - Global search across all apps, with the owning app labeled
 - Recycle bin: deleted records can be restored or permanently removed
 - Todo completion state; active todos sort first
-- `Ctrl + Alt + N` global hotkey; in-window `Ctrl + N` to create, `Ctrl + F` to search
+- Global hotkey (default `Ctrl + Alt + N`, customizable in settings); in-window `Ctrl + N` to create, `Ctrl + F` to search
+- Event-driven foreground app tracking (WinEvent for instant detection, polling as fallback)
 - Single instance; relaunch only brings up the existing window
 - Drag, resize, and remembered window size/position; first dock follows the foreground app's monitor
-- Closes to the system tray; tray menu can export a data backup
+- Launch at startup (toggle in settings)
+- Closes to the system tray; tray menu can export a data backup or open settings
 - Windows 11 Desktop Acrylic, rounded corners and dark theme
 - Two rolling backups preserved before overwrite; corrupt main files fall back to older backups
 - No account, no telemetry, no cloud dependency
@@ -99,6 +101,7 @@ Current self-tests cover:
 - Corrupt-data recovery, backup recovery when the main file is missing (also migrated to the current schema), rolling backups with fallback, fallback to empty when all backups are corrupt, and oversized files treated as corrupt
 - Merge takes the newer entry on conflicts
 - Migration backfills creation timestamps
+- Settings round-trip and corrupt-settings fallback to defaults
 - Backup retention before saving, and data export copies
 - Stable identity and migration for Store app upgrades
 
@@ -143,8 +146,7 @@ Directory.Build.props  Central project version
 
 - Different workspaces of the same app currently share one set of records.
 - A few apps that use system process wrappers and hide the real EXE path may display inaccurately.
-- The global hotkey is fixed to `Ctrl + Alt + N`; there is no settings UI yet.
-- No MSIX installer, code signing, or startup-launch setup yet.
+- No MSIX installer or code signing yet.
 
 ## Contributing
 

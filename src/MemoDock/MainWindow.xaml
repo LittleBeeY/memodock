@@ -478,8 +478,11 @@
                 <Grid Grid.Row="3" Margin="0,18,0,14">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
-                                  PanningMode="VerticalOnly">
-                        <ItemsControl x:Name="EntryList">
+                                  PanningMode="VerticalOnly"
+                                  CanContentScroll="True">
+                        <ItemsControl x:Name="EntryList"
+                                      VirtualizingStackPanel.IsVirtualizing="True"
+                                      VirtualizingStackPanel.VirtualizationMode="Recycling">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Margin="0,0,0,12"

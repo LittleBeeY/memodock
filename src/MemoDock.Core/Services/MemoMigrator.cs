@@ -6,7 +6,7 @@ namespace MemoDock.Core.Services;
 public static class MemoMigrator
 {
     /// <summary>当前数据库结构版本。</summary>
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     /// <summary>
     /// 将数据库迁移到最新版本。
@@ -47,6 +47,19 @@ public static class MemoMigrator
             }
 
             changed = true;
+        }
+
+        // v4：为旧记录补全创建时间；缺失时以最后更新时间为准。
+        foreach (var notebook in database.Apps)
+        {
+            foreach (var entry in notebook.Entries)
+            {
+                if (entry.CreatedAt == default)
+                {
+                    entry.CreatedAt = entry.UpdatedAt;
+                    changed = true;
+                }
+            }
         }
 
         return changed;

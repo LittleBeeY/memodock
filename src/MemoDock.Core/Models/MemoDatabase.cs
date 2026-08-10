@@ -4,7 +4,7 @@ namespace MemoDock.Core.Models;
 public sealed class MemoDatabase
 {
     /// <summary>数据库结构版本，由 <see cref="MemoDock.Core.Services.MemoMigrator"/> 维护。</summary>
-    public int Version { get; set; } = 3;
+    public int Version { get; set; } = 4;
 
     /// <summary>各软件的独立记录本。</summary>
     public List<AppNotebook> Apps { get; set; } = [];

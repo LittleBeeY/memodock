@@ -286,6 +286,7 @@ public partial class MainWindow : Window
                 Kind = _selectedKind,
                 Title = editor.EntryTitle,
                 Body = editor.EntryBody,
+                CreatedAt = DateTimeOffset.Now,
                 UpdatedAt = DateTimeOffset.Now
             };
 

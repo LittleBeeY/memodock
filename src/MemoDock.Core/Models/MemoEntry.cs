@@ -45,6 +45,12 @@ public sealed class MemoEntry : INotifyPropertyChanged
         set => SetField(ref _isDeleted, value);
     }
 
+    /// <summary>
+    /// 创建时间。默认值为 <see cref="DateTimeOffset.MinValue"/>：旧数据缺少该字段时，
+    /// 由 <see cref="MemoDock.Core.Services.MemoMigrator"/> 用更新时间补全。
+    /// </summary>
+    public DateTimeOffset CreatedAt { get; set; }
+
     /// <summary>最后更新时间，用于排序与冲突合并。</summary>
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.Now;
 

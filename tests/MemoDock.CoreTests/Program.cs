@@ -17,6 +17,11 @@ Run("滚动备份保留两级历史", RollingBackupKeepsTwoGenerations, failures
 Run("主备份损坏时回退到历史备份", RecoversFromOlderBackup, failures);
 Run("多关键词搜索需全部命中", MultiKeywordSearchRequiresAll, failures);
 Run("待办未完成项排在已完成项之前", TodoActiveItemsSortBeforeCompleted, failures);
+Run("合并冲突记录按更新时间取新", MergeTakesNewerEntry, failures);
+Run("原子写覆盖时保留上一版备份", AtomicWriteKeepsBackup, failures);
+Run("原子写不保留备份路径", AtomicWriteWithoutBackup, failures);
+Run("全部备份损坏时回退为空数据库", AllBackupsCorruptFallsBackToEmpty, failures);
+Run("旧数据迁移补全创建时间", MigrationBackfillsCreatedAt, failures);
 
 if (failures.Count > 0)
 {
@@ -303,6 +308,140 @@ static void TodoActiveItemsSortBeforeCompleted()
     Assert(ordered[0].Title == "待办B", "未完成项应先出现，且按更新时间倒序。");
     Assert(ordered[1].Title == "待办A", "未完成项内部应按更新时间倒序。");
     Assert(ordered[2].Title == "已完成", "已完成项应沉底。");
+}
+
+static void MergeTakesNewerEntry()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+
+    // 同一商店应用出现两个记录本（模拟升级前后），同一记录 Id 的正文不同。
+    // 注意：不能通过 GetOrCreateNotebook 创建——它会忽略大小写匹配并复用同一记录本。
+    var repository = new MemoRepository(path);
+    var id = Guid.NewGuid();
+    repository.Database.Apps.Add(new AppNotebook
+    {
+        AppId = "windows-package:same_1!app.exe",
+        DisplayName = "App",
+        ExecutablePath = "C:\\P\\a.exe",
+        Entries = new ObservableCollection<MemoEntry>
+        {
+            new MemoEntry
+            {
+                Id = id,
+                Kind = MemoKind.Note,
+                Title = "记录",
+                Body = "旧内容",
+                UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            }
+        }
+    });
+    repository.Database.Apps.Add(new AppNotebook
+    {
+        AppId = "windows-package:SAME_1!app.exe",
+        DisplayName = "App",
+        ExecutablePath = "C:\\P\\b.exe",
+        Entries = new ObservableCollection<MemoEntry>
+        {
+            new MemoEntry
+            {
+                Id = id,
+                Kind = MemoKind.Note,
+                Title = "记录",
+                Body = "新内容",
+                UpdatedAt = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero)
+            }
+        }
+    });
+    repository.Database.Version = 1;
+    repository.Save();
+
+    var migrated = new MemoRepository(path);
+    migrated.Load();
+
+    var notebook = migrated.Database.Apps.Single();
+    Assert(notebook.Entries.Count == 1, "同一记录应合并为一条。");
+    Assert(notebook.Entries.Single().Body == "新内容", "合并应取更新时间较新的记录。");
+}
+
+static void AtomicWriteKeepsBackup()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "data.txt");
+
+    AtomicFile.WriteAllText(path, "第一版", keepBackup: true);
+    AtomicFile.WriteAllText(path, "第二版", keepBackup: true);
+
+    Assert(File.ReadAllText(path) == "第二版", "正式文件应为最新内容。");
+    Assert(File.ReadAllText(path + ".bak") == "第一版", "覆盖前应保留上一版备份。");
+}
+
+static void AtomicWriteWithoutBackup()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "data.txt");
+
+    AtomicFile.WriteAllText(path, "第一版", keepBackup: false);
+    AtomicFile.WriteAllText(path, "第二版", keepBackup: false);
+
+    Assert(File.ReadAllText(path) == "第二版", "正式文件应为最新内容。");
+    Assert(!File.Exists(path + ".bak"), "keepBackup=false 时不应生成备份。");
+}
+
+static void AllBackupsCorruptFallsBackToEmpty()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+    var repository = new MemoRepository(path);
+    var notebook = repository.GetOrCreateNotebook(new AppDescriptor("editor.exe", "代码编辑器", "C:\\Apps\\editor.exe"));
+    notebook.Entries.Add(new MemoEntry { Kind = MemoKind.Note, Title = "唯一记录" });
+    repository.Save();
+    notebook.Entries[0].Title = "二次保存";
+    repository.Save();
+
+    File.WriteAllText(path, "{broken");
+    File.WriteAllText(path + ".bak", "{broken");
+    File.WriteAllText(path + ".bak.1", "{broken");
+
+    var recovered = new MemoRepository(path);
+    recovered.Load();
+
+    Assert(recovered.Database.Apps.Count == 0, "全部备份损坏时应回退为空数据库。");
+    Assert(Directory.GetFiles(sandbox.Path, "memos.json.corrupt-*").Length == 1, "损坏的主文件应保留。");
+}
+
+static void MigrationBackfillsCreatedAt()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+
+    // v3 数据没有 CreatedAt 字段，加载时应以 UpdatedAt 补全并升级到 v4。
+    File.WriteAllText(path, """
+        {
+          "Version": 3,
+          "Apps": [
+            {
+              "AppId": "editor.exe",
+              "DisplayName": "编辑器",
+              "ExecutablePath": "C:\\Apps\\editor.exe",
+              "Entries": [
+                {
+                  "Kind": "Note",
+                  "Title": "旧记录",
+                  "UpdatedAt": "2026-01-15T10:00:00+08:00"
+                }
+              ]
+            }
+          ]
+        }
+        """);
+
+    var repository = new MemoRepository(path);
+    repository.Load();
+
+    var entry = repository.Database.Apps.Single().Entries.Single();
+    Assert(repository.Database.Version == MemoMigrator.CurrentVersion, "迁移后数据库版本应升级。");
+    Assert(entry.CreatedAt == new DateTimeOffset(2026, 1, 15, 10, 0, 0, TimeSpan.FromHours(8)), "旧记录应补全创建时间。");
 }
 
 static void Run(string name, Action test, ICollection<string> failures)

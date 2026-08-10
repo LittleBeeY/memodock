@@ -10,6 +10,16 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - Configurable global hotkey: a new settings window (tray menu or "Settings" at the bottom-right of the main window) lets you pick any modifier/key combination.
 - Launch at startup: toggle in settings, written to the current user's Run registry key without admin rights.
 
+### Fixed
+
+- Fixed the startup registry write missing its string terminator, which prevented the value from being written.
+- Hotkey availability is probed before saving: an occupied combination is rejected without persisting it, so the old hotkey stays active.
+- Common system combinations (e.g. Ctrl+C/V) require an explicit confirmation to avoid hijacking the clipboard.
+- A failure to rename a corrupt database snapshot no longer blocks recovery from backups.
+- Multi-monitor docking now converts coordinates using the system DPI, fixing misplacement on mixed-DPI setups.
+- Esc inside the hotkey capture box cancels capture instead of closing the settings window.
+- Failed foreground-app identification is no longer cached, so recognition recovers once process info becomes available.
+
 ## [0.4.0] - 2026-08-10
 
 ### Added

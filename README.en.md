@@ -100,7 +100,7 @@ Current self-tests cover:
 - Todo ordering (active items first)
 - Corrupt-data recovery, backup recovery when the main file is missing (also migrated to the current schema), rolling backups with fallback, fallback to empty when all backups are corrupt, and oversized files treated as corrupt
 - Merge takes the newer entry on conflicts
-- Migration backfills creation timestamps
+- Migration backfills creation timestamps and is idempotent
 - Settings round-trip and corrupt-settings fallback to defaults
 - Backup retention before saving, and data export copies
 - Stable identity and migration for Store app upgrades

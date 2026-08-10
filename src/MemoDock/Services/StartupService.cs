@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -54,8 +55,10 @@ public static class StartupService
                 return RegDeleteValue(key.Value, ValueName) == 0;
             }
 
+            // 自包含单文件模式下 Assembly.Location 恒为空，故不用它；
+            // Environment.ProcessPath 在单文件下也返回 exe 实际路径。
             var executablePath = Environment.ProcessPath
-                ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
+                ?? Path.Combine(AppContext.BaseDirectory, Path.GetFileName(Environment.GetCommandLineArgs()[0]));
             var commandLine = $"\"{executablePath}\"";
             // REG_SZ 要求以 null 结尾，且字节数须包含终止符，否则写入返回 ERROR_INVALID_PARAMETER。
             var data = Encoding.Unicode.GetBytes(commandLine + "\0");

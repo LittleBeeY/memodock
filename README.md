@@ -159,6 +159,6 @@ Directory.Build.props  统一项目版本号
 
 ## 许可证
 
-[MIT](./LICENSE) © 2026 MemoDock contributors
+[Apache License 2.0](./LICENSE) © 2026 MemoDock contributors
 
 本项目的记录以明文 JSON 保存，属于"本地私有"而非加密存储；请勿把敏感凭据写入记录。

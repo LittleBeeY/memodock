@@ -96,10 +96,10 @@ Current self-tests cover:
 - Global search across apps
 - Soft delete, recycle bin and restore
 - Todo ordering (active items first)
-- Corrupt-data recovery from the previous version
-- Rolling backups and fallback to an older generation
-- Backup retention before saving
-- Data export copies
+- Corrupt-data recovery, rolling backups with fallback, and fallback to empty when all backups are corrupt
+- Merge takes the newer entry on conflicts
+- Migration backfills creation timestamps
+- Backup retention before saving, and data export copies
 - Stable identity and migration for Store app upgrades
 
 ### Publishing

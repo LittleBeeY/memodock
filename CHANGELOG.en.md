@@ -16,6 +16,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 - Search supports multiple keywords (whitespace-separated, all must match); active todos sort before completed ones.
 - Saving is debounced and batched; pending changes are flushed when the window hides or the app exits.
+- Record lists are virtualized for smoother scrolling with many records.
 
 ### Fixed
 
@@ -24,6 +25,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ### Internal
 
+- Records now carry a creation timestamp (schema v4); old data is backfilled with the update time on load.
+- Self-tests expanded: merge takes the newer entry, atomic-write backup paths, fallback to empty when all backups are corrupt, and migration backfill.
 - Added English translations for user-facing docs (README, contributing guide, security policy, changelog) with language switcher links.
 - Pinned third-party GitHub Actions in CI and release workflows to full commit SHAs to remove supply-chain risk from mutable tags.
 

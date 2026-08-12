@@ -31,6 +31,7 @@ MemoDock detects the app that was last in the foreground and automatically switc
 - Global search across all apps, with the owning app labeled
 - Recycle bin: deleted records can be restored or permanently removed
 - Todo completion state; active todos sort first
+- Record cards show the first-save time; older records fall back to their last-modified time
 - Global hotkey (default `Ctrl + Alt + N`, customizable in settings); in-window `Ctrl + N` to create, `Ctrl + F` to search
 - Event-driven foreground app tracking (WinEvent for instant detection, polling as fallback)
 - Single instance; relaunch only brings up the existing window
@@ -147,6 +148,7 @@ Directory.Build.props  Central project version
 - Different workspaces of the same app currently share one set of records.
 - A few apps that use system process wrappers and hide the real EXE path may display inaccurately.
 - No MSIX installer or code signing yet.
+- Records created before this feature have no true first-save time; their cards show a value approximated from the last-modified time at migration, which cannot later be distinguished from a real creation time.
 
 ## Contributing
 

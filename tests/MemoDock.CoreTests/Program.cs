@@ -28,6 +28,8 @@ Run("原子写覆盖时保留上一版备份", AtomicWriteKeepsBackup, failures)
 Run("原子写不保留备份路径", AtomicWriteWithoutBackup, failures);
 Run("全部备份损坏时回退为空数据库", AllBackupsCorruptFallsBackToEmpty, failures);
 Run("旧数据迁移补全创建时间", MigrationBackfillsCreatedAt, failures);
+Run("创建时间持久化且首次与更新一致", CreatedAtPersistsAndMatchesUpdated, failures);
+Run("编辑记录不改变创建时间", EditingKeepsCreatedAt, failures);
 
 if (failures.Count > 0)
 {
@@ -590,6 +592,52 @@ static void MigrationBackfillsCreatedAt()
     var entry = repository.Database.Apps.Single().Entries.Single();
     Assert(repository.Database.Version == MemoMigrator.CurrentVersion, "迁移后数据库版本应升级。");
     Assert(entry.CreatedAt == new DateTimeOffset(2026, 1, 15, 10, 0, 0, TimeSpan.FromHours(8)), "旧记录应补全创建时间。");
+}
+
+static void CreatedAtPersistsAndMatchesUpdated()
+{
+    using var sandbox = new TestDirectory();
+    var path = Path.Combine(sandbox.Path, "memos.json");
+    var repository = new MemoRepository(path);
+
+    var createdAt = new DateTimeOffset(2026, 1, 15, 10, 0, 0, TimeSpan.FromHours(8));
+    var notebook = repository.GetOrCreateNotebook(new AppDescriptor("editor.exe", "代码编辑器", "C:\\Apps\\editor.exe"));
+    notebook.Entries.Add(new MemoEntry
+    {
+        Kind = MemoKind.Note,
+        Title = "首次保存",
+        CreatedAt = createdAt,
+        UpdatedAt = createdAt
+    });
+    repository.Save();
+
+    var reloaded = new MemoRepository(path);
+    reloaded.Load();
+    var entry = reloaded.Database.Apps.Single().Entries.Single();
+
+    Assert(entry.CreatedAt == createdAt, "首次保存的创建时间应被持久化。");
+    Assert(entry.CreatedAt == entry.UpdatedAt, "首次保存时创建时间应与更新时间一致。");
+}
+
+static void EditingKeepsCreatedAt()
+{
+    var createdAt = new DateTimeOffset(2026, 1, 15, 10, 0, 0, TimeSpan.FromHours(8));
+    var entry = new MemoEntry
+    {
+        Kind = MemoKind.Note,
+        Title = "原始标题",
+        Body = "原始正文",
+        CreatedAt = createdAt,
+        UpdatedAt = createdAt
+    };
+
+    // 模拟编辑记录：只更新标题、正文和更新时间。
+    entry.Title = "新标题";
+    entry.Body = "新正文";
+    entry.UpdatedAt = new DateTimeOffset(2026, 2, 1, 12, 30, 0, TimeSpan.FromHours(8));
+
+    Assert(entry.CreatedAt == createdAt, "编辑记录后创建时间应保持不变。");
+    Assert(entry.UpdatedAt > createdAt, "编辑记录后更新时间应前进。");
 }
 
 static void Run(string name, Action test, ICollection<string> failures)

@@ -440,13 +440,15 @@ public partial class MainWindow : Window
 
         if (existing is null)
         {
+            // 只获取一次当前时间，保证首次保存时 CreatedAt 与 UpdatedAt 完全一致。
+            var now = DateTimeOffset.Now;
             var entry = new MemoEntry
             {
                 Kind = _selectedKind,
                 Title = editor.EntryTitle,
                 Body = editor.EntryBody,
-                CreatedAt = DateTimeOffset.Now,
-                UpdatedAt = DateTimeOffset.Now
+                CreatedAt = now,
+                UpdatedAt = now
             };
 
             CommitMutation(() => _currentNotebook.Entries.Add(entry));

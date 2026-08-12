@@ -9,6 +9,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - Event-driven foreground tracking: foreground switches are now detected instantly via WinEvent, with polling kept only as a fallback (faster response, lower power use).
 - Configurable global hotkey: a new settings window (tray menu or "Settings" at the bottom-right of the main window) lets you pick any modifier/key combination.
 - Launch at startup: toggle in settings, written to the current user's Run registry key without admin rights.
+- Record cards now show the first-save time (absolute time to the minute, full value on hover); older records fall back to their last-modified time.
 
 ### Fixed
 

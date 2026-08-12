@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:models="clr-namespace:MemoDock.Core.Models;assembly=MemoDock.Core"
+        xmlns:sys="clr-namespace:System;assembly=System.Runtime"
         Title="MemoDock"
         Width="380"
         Height="720"
@@ -570,6 +571,22 @@
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding Entry.IsCompleted}" Value="True">
                                                                     <Setter Property="Opacity" Value="0.46" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Entry.CreatedAt, StringFormat={}{0:yyyy年M月d日 HH:mm}}"
+                                                           Margin="0,8,0,0"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="10.5"
+                                                           ToolTip="{Binding Entry.CreatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm:ss zzz}}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Entry.CreatedAt}" Value="{x:Static sys:DateTimeOffset.MinValue}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>

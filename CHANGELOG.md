@@ -4,7 +4,7 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 约定，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [0.5.0] - 2026-08-12
 
 ### 新增
 
@@ -82,6 +82,6 @@
 
 - 商店应用升级后仍能关联原有笔记（稳定身份识别）。
 
-[未发布]: https://github.com/LittleBeeY/memodock/compare/v0.4.0...HEAD
+[0.5.0]: https://github.com/LittleBeeY/memodock/releases/tag/v0.5.0
 [0.4.0]: https://github.com/LittleBeeY/memodock/releases/tag/v0.4.0
 [0.3.0]: https://github.com/LittleBeeY/memodock/releases/tag/v0.3.0

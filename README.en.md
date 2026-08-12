@@ -15,7 +15,7 @@
 
 MemoDock detects the app that was last in the foreground and automatically switches to that app's own notes and todos. Everything is stored locally — no account or network required.
 
-> Current version: `0.4.0` ([Download](https://github.com/LittleBeeY/memodock/releases/tag/v0.4.0))
+> Current version: `0.5.0` ([Download](https://github.com/LittleBeeY/memodock/releases/tag/v0.5.0))
 
 <p align="center">
   <img src="./output/imagegen/memodock-sidebar-v5.png" width="360" alt="MemoDock preview">

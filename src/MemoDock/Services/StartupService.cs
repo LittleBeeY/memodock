@@ -19,7 +19,11 @@ public static class StartupService
 
     private static readonly IntPtr HKeyCurrentUser = new(0x80000001);
 
-    /// <summary>是否已注册开机自启。</summary>
+    /// <summary>
+    /// 是否已注册开机自启。
+    /// 注册值存在但指向其他可执行文件（例如旧发布目录已被删除或替换）时视为未启用，
+    /// 以便调用方在启动时把注册值更正为当前运行的程序。
+    /// </summary>
     public static bool IsEnabled()
     {
         using var key = OpenKey(KeyQueryValue);
@@ -28,15 +32,78 @@ public static class StartupService
             return false;
         }
 
+        var commandLine = QueryRunValue(key.Value);
+        if (commandLine is null)
+        {
+            return false;
+        }
+
+        var currentPath = Environment.ProcessPath;
+        if (currentPath is null)
+        {
+            // 拿不到当前路径时退回旧行为：注册值存在即视为启用。
+            return true;
+        }
+
+        return string.Equals(
+            ExtractExecutablePath(commandLine),
+            currentPath,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>读取 Run 值的完整命令行；不存在或读取失败时返回 <c>null</c>。</summary>
+    private static string? QueryRunValue(IntPtr key)
+    {
         var bufferSize = 0u;
         var result = RegQueryValueEx(
-            key.Value,
+            key,
             ValueName,
             IntPtr.Zero,
             out _,
             null,
             ref bufferSize);
-        return result == 0 && bufferSize > 0;
+        if (result != 0 || bufferSize == 0)
+        {
+            return null;
+        }
+
+        var buffer = new byte[bufferSize];
+        result = RegQueryValueEx(
+            key,
+            ValueName,
+            IntPtr.Zero,
+            out _,
+            buffer,
+            ref bufferSize);
+        if (result != 0)
+        {
+            return null;
+        }
+
+        // REG_SZ 数据包含终止符，写入时已按字符数（含终止符）编码。
+        return Encoding.Unicode.GetString(buffer, 0, (int)bufferSize).TrimEnd('\0');
+    }
+
+    /// <summary>
+    /// 从 Run 值命令行中提取可执行文件路径，规则与 CreateProcess 一致：
+    /// 首字符为引号时取一对引号内的内容，否则取第一个空格前的片段。
+    /// </summary>
+    private static string ExtractExecutablePath(string commandLine)
+    {
+        var text = commandLine.Trim();
+        if (text.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        if (text[0] == '"')
+        {
+            var closingQuote = text.IndexOf('"', 1);
+            return closingQuote > 1 ? text[1..closingQuote] : text[1..];
+        }
+
+        var space = text.IndexOf(' ');
+        return space < 0 ? text : text[..space];
     }
 
     /// <summary>设置或取消开机自启；注册表不可写时返回 <c>false</c>。</summary>

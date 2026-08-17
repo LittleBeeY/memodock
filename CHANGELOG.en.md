@@ -2,6 +2,12 @@
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-08-17
+
+### Fixed
+
+- Launch-at-startup registry entry could keep pointing at a stale publish folder after upgrades; the app now verifies the Run value matches the running executable and self-corrects it on launch.
+
 ## [0.5.0] - 2026-08-12
 
 ### Added
